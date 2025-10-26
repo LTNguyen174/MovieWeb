@@ -1,0 +1,26 @@
+#Môi trường ảo (Virtual Environment)
+
+venv/
+.env
+
+#File dữ liệu lớn
+
+*.csv
+*.sqlite3
+
+#Python cache
+
+pycache/
+*.pyc
+
+#Django
+
+local_settings.py
+
+#VSCode (Nếu dùng)
+
+.vscode/
+
+#Windows
+
+Thumbs.db
