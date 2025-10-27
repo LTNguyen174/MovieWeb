@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Movie, Category, Comment, Rating
+from .models import Movie, Category, Comment, Rating, Episode
 from django.db.models import Avg
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -50,3 +50,12 @@ class CommentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ('movie_tmdb_id', 'content')
+class EpisodeSerializer(serializers.ModelSerializer):
+    """
+    Serializer cho Admin quản lý tập phim.
+    Admin sẽ dùng ID nội bộ (PK) của Movie để tạo tập.
+    """
+    class Meta:
+        model = Episode
+        # 'movie' ở đây là ID nội bộ (1, 2, 3...), không phải tmdb_id
+        fields = ('id', 'movie', 'episode_number', 'title', 'video_url')
