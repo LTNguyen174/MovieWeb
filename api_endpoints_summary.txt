@@ -1,0 +1,403 @@
+# REST API endpoints (extracted from project)
+
+I inspected `movie_project/urls.py`, `movies/urls.py`, `movies/views.py`, `movies/serializers.py`, `movies/tmdb_service.py`, and `users/urls.py`, `users/views.py`, `users/serializers.py` and summarized every REST endpoint found. Notes/assumptions are listed at the end.
+
+---
+
+### Conventions used below
+- Base API root is `/api/` (set in `movie_project/urls.py`).
+- Movie router is the DRF `DefaultRouter()` registered in `movies/urls.py`. That means standard REST list/retrieve/create/... routes are under `/api/<router-prefix>/`.
+- `MovieViewSet.lookup_field = 'tmdb_id'` — movie retrieve URLs use the TMDB id (not internal PK).
+- Authentication/permission notes are included for each endpoint.
+- Example request/response bodies are inferred from serializers in `movies/serializers.py` and `users/serializers.py`. Dates/times shown as ISO strings.
+
+---
+
+## Movies app endpoints (prefix: /api/)
+
+### GET /api/movies/
+- Method: GET
+- Auth: Allowed for anonymous users (IsAuthenticatedOrReadOnly)
+- Description: List movies (paginated by DRF defaults). Uses `MovieSerializer` (summary fields).
+- Query params:
+  - `search=<text>` — full-text search on movie title (DRF SearchFilter).
+  - `categories=<id>` — filter by category id (can be repeated depending on client).
+  - `release_year=<year>` — filter by release year.
+- Example response (list item; MovieSerializer):
+
+```json
+[
+  {
+    "title": "The Example Movie",
+    "poster": "https://image.tmdb.org/t/p/w500/abcd.jpg",
+    "release_year": 2020,
+    "tmdb_id": 12345,
+    "categories": [
+      {"id": 1, "name": "Action"}
+    ]
+  },
+  ...
+]
+```
+
+### GET /api/movies/{tmdb_id}/
+- Method: GET
+- Auth: Allowed for anonymous users
+- Description: Retrieve movie details. Uses `MovieDetailSerializer`.
+- Example response (MovieDetailSerializer):
+
+```json
+{
+  "tmdb_id": 12345,
+  "title": "The Example Movie",
+  "description": "A long description...",
+  "poster": "https://image.tmdb.org/t/p/w500/abcd.jpg",
+  "release_year": 2020,
+  "categories": [{"id":1,"name":"Action"}],
+  "average_rating": 4.2
+}
+```
+
+### GET /api/movies/{tmdb_id}/comments/
+- Method: GET
+- Auth: MovieViewSet permits read for anonymous (IsAuthenticatedOrReadOnly) — but note `CommentViewSet` elsewhere requires authentication; this per-movie action uses `CommentSerializer` and returns comments for that movie.
+- Description: Returns comments attached to the movie (ordered by newest).
+- Example response:
+
+```json
+[
+  {
+    "id": 77,
+    "username": "alice",
+    "content": "Loved the soundtrack!",
+    "created_at": "2025-10-15T12:34:56Z"
+  },
+  ...
+]
+```
+
+### POST /api/movies/{tmdb_id}/rate/
+- Method: POST
+- Auth: Requires authentication (permission_classes on action = IsAuthenticated)
+- Description: Create or update the authenticated user's rating for the movie. Accepts `stars` integer.
+- Request example:
+
+```json
+{
+  "stars": 5
+}
+```
+- Response example:
+
+```json
+{
+  "status": "rating saved"
+}
+```
+- Possible responses: `201 Created` on save, `400 Bad Request` on invalid stars.
+
+### POST /api/movies/{tmdb_id}/increment_view/
+- Method: POST
+- Auth: Allows any user (permission_classes on action = AllowAny)
+- Description: Increment the movie's `views` by 1. Returns current total views.
+- Request body: none required.
+- Response example:
+
+```json
+{
+  "status": "view incremented",
+  "total_views": 1245
+}
+```
+
+### GET /api/movies/{tmdb_id}/recommendations/
+- Method: GET
+- Auth: Allowed for anonymous users
+- Description: Returns up to ~10 recommended movies that share categories with the given movie; ordered by shared category count and views. Uses `MovieSerializer`.
+- Response example: same shape as MovieSerializer list (see /api/movies/).
+
+---
+
+## Categories endpoints (prefix: /api/categories/)
+
+### GET /api/categories/
+- Method: GET
+- Auth: AllowAny
+- Description: List all categories. Uses `CategorySerializer`.
+- Response example:
+
+```json
+[
+  {"id":1,"name":"Action"},
+  {"id":2,"name":"Drama"}
+]
+```
+
+### GET /api/categories/{pk}/
+- Method: GET
+- Auth: AllowAny
+- Description: Retrieve a single category by PK.
+- Response example:
+
+```json
+{"id":1,"name":"Action"}
+```
+
+---
+
+## Comments endpoints (prefix: /api/comments/)
+
+`CommentViewSet` is a ModelViewSet registered as `comments` on the router.
+
+### GET /api/comments/
+- Method: GET
+- Auth: The view's `permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]` — currently that combination requires authenticated users for all actions (read included). So authenticated users can list comments.
+- Description: List comments (global) — the serializer used for list is `CommentSerializer` (includes username).
+- Response example:
+
+```json
+[
+  {"id": 77, "username": "alice", "content": "Nice plot", "created_at": "2025-10-15T12:34:56Z"},
+  ...
+]
+```
+
+### POST /api/comments/
+- Method: POST
+- Auth: Requires authentication (IsAuthenticated)
+- Description: Create a comment. `CommentCreateSerializer` expects `movie_tmdb_id` (write-only) and `content`. `perform_create` maps `movie_tmdb_id` to the internal Movie and saves `user` from request.
+- Request example:
+
+```json
+{
+  "movie_tmdb_id": 12345,
+  "content": "Great movie!"
+}
+```
+- Response: The view uses the create serializer; typical behavior is the created resource will be returned (clients should expect a comment representation). Example response (read-style):
+
+```json
+{
+  "id": 512,
+  "username": "bob",
+  "content": "Great movie!",
+  "created_at": "2025-11-07T09:00:00Z"
+}
+```
+(Implementations may return the `create` serializer data, but the created/read representation is the practical expectation.)
+
+### GET /api/comments/{pk}/
+- Method: GET
+- Auth: Requires authentication (per `permission_classes`)
+- Description: Retrieve one comment (read serializer returns `username`).
+
+### PUT/PATCH /api/comments/{pk}/
+- Method: PUT or PATCH
+- Auth: Requires authenticated & owner (IsOwnerOrReadOnly enforces that only the owner can modify).
+- Request example (update content):
+
+```json
+{
+  "content": "Updated comment text"
+}
+```
+- Response: updated comment representation.
+
+### DELETE /api/comments/{pk}/
+- Method: DELETE
+- Auth: Requires authenticated & owner
+- Description: Delete comment.
+
+---
+
+## Admin-style endpoints (mounted at /api/admin/... from `movies/urls.py` admin_patterns)
+
+> These are registered manually in `movies/urls.py`:
+> - `path('stats/', DashboardStatsView.as_view(), name='admin-stats')`
+> - `path('fetch-tmdb/', FetchTMDBView.as_view(), name='admin-fetch-tmdb')`
+> - `path('import-tmdb/', ImportTMDBView.as_view(), name='admin-import-tmdb')`
+
+All admin endpoints require the user to be an admin (`IsAdminUser`).
+
+### GET /api/admin/stats/
+- Method: GET
+- Auth: Admin only
+- Description: Returns simple dashboard statistics: counts of users, movies, comments, and total movie views.
+- Response example:
+
+```json
+{
+  "user_count": 128,
+  "movie_count": 5123,
+  "comment_count": 2345,
+  "total_views": 789012
+}
+```
+
+### GET /api/admin/fetch-tmdb/?search={query}
+- Method: GET
+- Auth: Admin only
+- Description: Proxy search to TMDB (server-side call) to fetch matching movies. Query param: `search`.
+- Example request: `GET /api/admin/fetch-tmdb/?search=terminator`
+- Example response (list of simplified TMDB results):
+
+```json
+[
+  {
+    "tmdb_id": 101,
+    "title": "The Terminator",
+    "poster_path": "/poster.jpg",
+    "release_date": "1984-10-26"
+  },
+  ...
+]
+```
+- Errors: `400` if `search` missing, `500` on TMDB call failure.
+
+### POST /api/admin/import-tmdb/
+- Method: POST
+- Auth: Admin only
+- Description: Server fetch of a single movie by its TMDB id and import into local DB using `import_movie_from_tmdb` (in `movies/tmdb_service.py`). If movie already exists, returns `409 Conflict`.
+- Request example:
+
+```json
+{
+  "tmdb_id": 12345
+}
+```
+- Success response: serialized `MovieDetailSerializer` (see movie detail example) with `201 Created`.
+- Error responses: `400` if missing tmdb_id, `409` if already exists, `500` for other errors.
+
+---
+
+## Users / Authentication endpoints (prefix: /api/auth/)
+
+### POST /api/auth/register/
+- Method: POST
+- Auth: AllowAny
+- Description: Register a new user. Uses `RegisterSerializer` which requires `username`, `email`, `password`.
+- Request example:
+
+```json
+{
+  "username": "alice",
+  "email": "alice@example.com",
+  "password": "s3cr3t"
+}
+```
+- Response example: created user object (fields depend on `RegisterSerializer` output — often `username` and `email`).
+
+### POST /api/auth/login/
+- Method: POST
+- Auth: AllowAny
+- Description: JWT login (DRF SimpleJWT `TokenObtainPairView`). Expect `username` and `password`. Returns `access` and `refresh` tokens.
+- Request:
+
+```json
+{
+  "username": "alice",
+  "password": "s3cr3t"
+}
+```
+- Response:
+
+```json
+{
+  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOi...",
+  "access": "eyJ0eXAiOiJKV1QiLCJhbGciOi..."
+}
+```
+
+### POST /api/auth/login/refresh/
+- Method: POST
+- Auth: AllowAny
+- Description: Refresh access token with a `refresh` token.
+- Request:
+
+```json
+{"refresh": "<refresh token>"}
+```
+- Response:
+
+```json
+{"access": "<new access token>"}
+```
+
+### GET /api/auth/profile/favorites/
+- Method: GET
+- Auth: Requires authentication (IsAuthenticated)
+- Description: Lists the authenticated user's ratings (favorite list). Uses `UserRatingSerializer` which includes a nested `movie` object (MovieSerializer), `stars`, and `created_at`.
+- Response example:
+
+```json
+[
+  {
+    "movie": {
+      "title": "The Example Movie",
+      "poster": "https://image.tmdb.org/t/p/w500/abcd.jpg",
+      "release_year": 2020,
+      "tmdb_id": 12345,
+      "categories": [{"id":1,"name":"Action"}]
+    },
+    "stars": 5,
+    "created_at": "2025-10-01T08:00:00Z"
+  },
+  ...
+]
+```
+
+### GET /api/auth/profile/comments/
+- Method: GET
+- Auth: Requires authentication
+- Description: Lists comments created by the authenticated user. Returns items using `CommentSerializer`.
+- Response example:
+
+```json
+[
+  {"id": 77, "username": "alice", "content": "I liked it", "created_at": "2025-10-15T12:34:56Z"},
+  ...
+]
+```
+
+### PUT /api/auth/profile/change-password/
+- Method: PUT
+- Auth: Requires authentication
+- Description: Change password for the authenticated user. Uses `ChangePasswordSerializer` expecting `old_password`, `new_password`, `new_password_confirm`. Validates old password and matching new passwords.
+- Request example:
+
+```json
+{
+  "old_password": "old123",
+  "new_password": "newSecret1",
+  "new_password_confirm": "newSecret1"
+}
+```
+- Success response:
+
+```json
+{"status": "Đổi mật khẩu thành công."}
+```
+- Error responses: `400` with `old_password` error if old password incorrect or validation errors for new passwords.
+
+---
+
+## Other notes, uncertainties, and small findings
+
+- `EpisodeViewSet` is implemented in `movies/views.py` but not registered in the `DefaultRouter()` or `admin_patterns` — so no route is actually exposed for episodes. The docstring suggests `GET/POST /api/admin/episodes/` and `GET/PUT/DELETE /api/admin/episodes/<id>/`, but the router or explicit path is not present. If you intend to expose episodes, you need to add a router registration or an admin path in `movies/urls.py`.
+- `CommentViewSet.permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]`: as written, combining `IsAuthenticated` with `IsOwnerOrReadOnly` means anonymous users likely cannot read comments (because `IsAuthenticated` blocks them). If public comment listing is desired, consider `permission_classes = [IsOwnerOrReadOnly]` or `permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]`.
+- For `/api/comments/` create: the create serializer (`CommentCreateSerializer`) has `movie_tmdb_id` write-only and `content`. The view's `perform_create` finds the `Movie` from `movie_tmdb_id` and saves the `user`. Clients should POST `{ "movie_tmdb_id": <tmdb_id>, "content": "..." }`. The returned JSON may follow the create serializer (which is minimal) or the read serializer depending on the view's behavior; in practice, clients typically expect to receive the created comment in a read-friendly shape (`id`, `username`, `content`, `created_at`).
+- TMDB import behavior: `/api/admin/import-tmdb/` will call `import_movie_from_tmdb` (in `movies/tmdb_service.py`) which creates `Movie`, `Category`, `Actor`, `Country` objects and returns `(movie, created)`. If a movie with that `tmdb_id` exists, the view returns `409 Conflict`.
+- Movie lookup uses `tmdb_id` rather than DB PK. Use e.g. `/api/movies/12345/` for TMDB id 12345.
+
+---
+
+## Quick follow-ups I can do (pick any)
+- Add explicit example curl/powershell commands for each endpoint (with JWT header usage).
+- Add missing routes for `EpisodeViewSet` (admin-only) and a small unit test verifying route existence.
+- Adjust `CommentViewSet` permissions if you want comments readable by anonymous users.
+
+---
+
+Done: I read the relevant files, performed a quick repo scan for URL patterns, and summarized endpoints. If you want, I can now:
+- produce copy-paste-ready curl/PowerShell examples (with JSON and Authorization header usage),
+- or open a PR to add the missing episode routes or tweak comment permissions. Which would you like next?
