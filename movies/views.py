@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAdminUser
 from django.db.models import Sum, Count, Q
 from users.models import User
 from rest_framework import viewsets, generics, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -23,11 +24,16 @@ from .serializers import (
 from .permissions import IsOwnerOrReadOnly
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Category.objects.all()
+    queryset = Category.objects.all().annotate(movie_count=Count('movies', distinct=True))
     serializer_class = CategorySerializer
     permission_classes = [AllowAny] # Ai cũng được xem
 
 # === CLASS MOVIEVIEWSET ĐÃ ĐƯỢC GỘP VÀ CẬP NHẬT ===
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 30
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 class MovieViewSet(viewsets.ReadOnlyModelViewSet):
     # CẬP NHẬT (Bước 3): Sắp xếp theo lượt xem
     queryset = Movie.objects.all().order_by('-views') 
@@ -37,6 +43,7 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['categories', 'release_year'] 
     search_fields = ['title'] 
+    pagination_class = StandardResultsSetPagination
 
     def get_serializer_class(self):
         if self.action == 'list':

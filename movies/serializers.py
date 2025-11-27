@@ -3,9 +3,11 @@ from .models import Movie, Category, Comment, Rating, Episode
 from django.db.models import Avg
 
 class CategorySerializer(serializers.ModelSerializer):
+    movie_count = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = Category
-        fields = ('id', 'name')
+        fields = ('id', 'name', 'movie_count')
 
 class MovieSerializer(serializers.ModelSerializer):
     """Serializer rút gọn cho danh sách phim."""
@@ -23,7 +25,7 @@ class MovieDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movie
         fields = ('tmdb_id', 'title', 'description', 'poster', 'release_year', 
-                  'categories', 'average_rating')
+                  'categories', 'average_rating', 'trailer_url')
 
     def get_average_rating(self, obj):
         # 'ratings' là related_name từ model Rating
