@@ -97,12 +97,16 @@ export default function CategoriesPage() {
         {selectedCategory && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="flex items-center gap-4 mb-8">
-              <button onClick={() => setSelectedCategory(null)} className="text-primary hover:underline">
-                ← Back to Categories
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary text-primary hover:border-white hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <span aria-hidden>←</span>
+                <span>Back to Categories</span>
               </button>
-              <h2 className="text-2xl font-bold">{selectedCategoryName} Movies</h2>
+              <h2 className="text-2xl font-bold">{selectedCategoryName}</h2>
             </div>
-            <MovieGrid categoryId={selectedCategory} title={`${selectedCategoryName} Movies`} enablePagination={true} pageSize={30} />
+            <MovieGrid categoryId={selectedCategory} title={selectedCategoryName || ""} enablePagination={true} pageSize={30} />
           </motion.div>
         )}
       </main>

@@ -34,12 +34,12 @@ export function CategoryCard({ category, index = 0 }: CategoryCardProps) {
       whileHover={{ scale: 1.03 }}
     >
       <div
-        className={`relative p-6 rounded-2xl bg-gradient-to-br ${gradient} border border-border/50 group cursor-pointer overflow-hidden`}
+        className={`relative p-6 pr-12 rounded-2xl bg-gradient-to-br ${gradient} border border-border/50 group cursor-pointer overflow-hidden min-h-28 md:min-h-32 flex items-start`}
       >
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
         <div className="relative z-10">
-          <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{category.name}</h3>
+          <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors line-clamp-2">{category.name}</h3>
 
           {category.movieCount !== undefined && (
             <p className="text-muted-foreground text-sm">{category.movieCount} movies</p>

@@ -22,6 +22,8 @@ export function MovieGrid({ movies: propMovies, title, searchQuery, categoryId, 
   const [page, setPage] = useState<number>(1)
   const [totalCount, setTotalCount] = useState<number | null>(null)
   const totalPages = totalCount ? Math.max(1, Math.ceil(totalCount / pageSize)) : null
+  const [gotoValue, setGotoValue] = useState<string>("")
+  const [gotoError, setGotoError] = useState<string | null>(null)
 
   // Reset page when filters change
   useEffect(() => {
@@ -131,24 +133,73 @@ export function MovieGrid({ movies: propMovies, title, searchQuery, categoryId, 
         ))}
       </div>
       {enablePagination && totalPages && totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-6">
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
           <button
-            className="px-3 py-2 rounded border disabled:opacity-50"
+            className="px-3 py-2 rounded border border-red-500 text-red-500 hover:bg-red-500/10 disabled:opacity-50"
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
           >
             Prev
           </button>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm font-medium text-red-500">
             Page {page} / {totalPages}
           </span>
           <button
-            className="px-3 py-2 rounded border disabled:opacity-50"
+            className="px-3 py-2 rounded border border-red-500 text-red-500 hover:bg-red-500/10 disabled:opacity-50"
             disabled={page >= totalPages}
             onClick={() => setPage((p) => (totalPages ? Math.min(totalPages, p + 1) : p + 1))}
           >
             Next
           </button>
+          <div className="flex items-center gap-2 ml-2">
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={gotoValue}
+              onChange={(e) => {
+                const v = e.target.value
+                setGotoValue(v)
+                if (!v) { setGotoError(null); return }
+                const n = Number(v)
+                if (!Number.isInteger(n)) { setGotoError("Vui lòng nhập số nguyên"); return }
+                if (totalPages && (n < 1 || n > totalPages)) { setGotoError(`Chỉ từ 1 đến ${totalPages}`); return }
+                setGotoError(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const n = parseInt(gotoValue, 10)
+                  if (!Number.isNaN(n) && (!totalPages || (n >= 1 && n <= totalPages))) {
+                    const clamped = totalPages ? Math.max(1, Math.min(totalPages, n)) : n
+                    setPage(clamped)
+                    setGotoValue("")
+                    setGotoError(null)
+                  }
+                }
+              }}
+              placeholder="Go to page"
+              aria-invalid={!!gotoError}
+              className={`h-9 w-28 rounded bg-transparent px-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 ${
+                gotoError ? "border border-red-500 focus:ring-red-500" : "border border-red-500 focus:ring-red-500"
+              }`}
+            />
+            <button
+              className="px-3 py-2 rounded border border-red-500 text-red-500 hover:bg-red-500/10 disabled:opacity-50"
+              disabled={!gotoValue || !!gotoError}
+              onClick={() => {
+                const n = parseInt(gotoValue, 10)
+                if (!Number.isNaN(n) && (!totalPages || (n >= 1 && n <= totalPages))) {
+                  const clamped = totalPages ? Math.max(1, Math.min(totalPages, n)) : n
+                  setPage(clamped)
+                  setGotoValue("")
+                  setGotoError(null)
+                }
+              }}
+            >
+              Go
+            </button>
+            {gotoError && <span className="text-xs text-red-500 ml-1">{gotoError}</span>}
+          </div>
         </div>
       )}
     </section>
