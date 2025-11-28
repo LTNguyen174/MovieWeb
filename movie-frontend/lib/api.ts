@@ -12,6 +12,11 @@ export function getAccessToken(): string | null {
   return localStorage.getItem("access_token")
 }
 
+// ============================================
+// PROFILE API - Favorites, Comments, Change Password
+// ============================================
+
+
 export function getRefreshToken(): string | null {
   if (typeof window === "undefined") return null
   return localStorage.getItem("refresh_token")
@@ -103,6 +108,7 @@ export interface Movie {
 export interface MovieDetail extends Movie {
   description: string
   average_rating: number
+  user_rating?: number | null
   trailer_url?: string | null
 }
 
@@ -111,6 +117,12 @@ export interface Comment {
   username: string
   content: string
   created_at: string
+  movie_title?: string
+  movie_tmdb_id?: number
+  likes_count?: number
+  dislikes_count?: number
+  user_reaction?: 'like' | 'dislike' | null
+  replies?: Comment[]
 }
 
 export interface UserRating {
@@ -215,7 +227,8 @@ export const moviesAPI = {
 
   // GET /api/movies/{tmdb_id}/
   async getMovie(tmdbId: number): Promise<MovieDetail> {
-    const response = await fetch(`${API_BASE_URL}/movies/${tmdbId}/`)
+    // Use authenticated fetch to retrieve user-specific fields like user_rating
+    const response = await fetchWithAuth(`${API_BASE_URL}/movies/${tmdbId}/`)
     if (!response.ok) throw new Error("Failed to fetch movie")
     return response.json()
   },
@@ -252,6 +265,15 @@ export const moviesAPI = {
     if (!response.ok) throw new Error("Failed to fetch recommendations")
     return response.json()
   },
+
+  // POST /api/movies/{tmdb_id}/watch/
+  async watch(tmdbId: number): Promise<{ status: string }> {
+    const response = await fetchWithAuth(`${API_BASE_URL}/movies/${tmdbId}/watch/`, {
+      method: "POST",
+    })
+    if (!response.ok) throw new Error("Failed to record watch history")
+    return response.json()
+  },
 }
 
 // ============================================
@@ -280,10 +302,10 @@ export const categoriesAPI = {
 
 export const commentsAPI = {
   // POST /api/comments/
-  async createComment(movieTmdbId: number, content: string): Promise<Comment> {
+  async createComment(movieTmdbId: number, content: string, parentId?: number): Promise<Comment> {
     const response = await fetchWithAuth(`${API_BASE_URL}/comments/`, {
       method: "POST",
-      body: JSON.stringify({ movie_tmdb_id: movieTmdbId, content }),
+      body: JSON.stringify({ movie_tmdb_id: movieTmdbId, content, parent_id: parentId }),
     })
     if (!response.ok) throw new Error("Failed to create comment")
     return response.json()
@@ -306,6 +328,25 @@ export const commentsAPI = {
     })
     if (!response.ok) throw new Error("Failed to delete comment")
   },
+
+  // POST /api/comments/{id}/react/
+  async react(commentId: number, reaction: 'like' | 'dislike'): Promise<Comment> {
+    const response = await fetchWithAuth(`${API_BASE_URL}/comments/${commentId}/react/`, {
+      method: "POST",
+      body: JSON.stringify({ reaction }),
+    })
+    if (!response.ok) throw new Error("Failed to react to comment")
+    return response.json()
+  },
+
+  // DELETE /api/comments/{id}/react/
+  async removeReaction(commentId: number): Promise<Comment> {
+    const response = await fetchWithAuth(`${API_BASE_URL}/comments/${commentId}/react/`, {
+      method: "DELETE",
+    })
+    if (!response.ok) throw new Error("Failed to remove reaction")
+    return response.json()
+  },
 }
 
 // ============================================
@@ -317,14 +358,16 @@ export const profileAPI = {
   async getFavorites(): Promise<UserRating[]> {
     const response = await fetchWithAuth(`${API_BASE_URL}/auth/profile/favorites/`)
     if (!response.ok) throw new Error("Failed to fetch favorites")
-    return response.json()
+    const data = await response.json()
+    return Array.isArray(data) ? data : (data?.results ?? [])
   },
 
   // GET /api/auth/profile/comments/
   async getMyComments(): Promise<Comment[]> {
     const response = await fetchWithAuth(`${API_BASE_URL}/auth/profile/comments/`)
     if (!response.ok) throw new Error("Failed to fetch comments")
-    return response.json()
+    const data = await response.json()
+    return Array.isArray(data) ? data : (data?.results ?? [])
   },
 
   // PUT /api/auth/profile/change-password/
@@ -341,8 +384,28 @@ export const profileAPI = {
         new_password_confirm: newPasswordConfirm,
       }),
     })
-    if (!response.ok) throw new Error("Failed to change password")
-    return response.json()
+    const data = await response.json().catch(() => null)
+    if (!response.ok) {
+      // Try to extract server-side validation errors
+      let message = "Failed to change password"
+      if (data && typeof data === 'object') {
+        const parts: string[] = []
+        Object.entries(data).forEach(([key, val]) => {
+          if (Array.isArray(val)) parts.push(`${key}: ${val.join(', ')}`)
+          else if (typeof val === 'string') parts.push(`${key}: ${val}`)
+        })
+        if (parts.length) message = parts.join(' | ')
+      }
+      throw new Error(message)
+    }
+    return data
+  },
+
+  async getHistory(): Promise<{ movie: Movie; last_watched_at: string }[]> {
+    const response = await fetchWithAuth(`${API_BASE_URL}/auth/profile/history/`)
+    if (!response.ok) throw new Error("Failed to fetch history")
+    const data = await response.json()
+    return Array.isArray(data) ? data : (data?.results ?? [])
   },
 }
 

@@ -3,7 +3,8 @@ from .views import (
         MyFavoritesView, 
         MyCommentsView, 
         ChangePasswordView,
-        RegisterView)
+        RegisterView,
+        MyHistoryView)
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -16,4 +17,5 @@ urlpatterns = [
     path('profile/favorites/', MyFavoritesView.as_view(), name='my-favorites'),
     path('profile/comments/', MyCommentsView.as_view(), name='my-comments'),
     path('profile/change-password/', ChangePasswordView.as_view(), name='change-password'),
+    path('profile/history/', MyHistoryView.as_view(), name='my-history'),
 ]

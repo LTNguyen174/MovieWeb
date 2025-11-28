@@ -9,15 +9,39 @@ import { Film, Mail, Lock, Eye, EyeOff, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useAuth } from "@/hooks/use-auth"
+import { useRouter } from "next/navigation"
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [username, setUsername] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const { register } = useAuth()
+  const router = useRouter()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError("")
+    if (!username || !email || !password) {
+      setError("Vui lòng điền đầy đủ thông tin.")
+      return
+    }
+    if (password.length < 8) {
+      setError("Mật khẩu phải có ít nhất 8 ký tự.")
+      return
+    }
     setIsLoading(true)
-    setTimeout(() => setIsLoading(false), 2000)
+    try {
+      await register(username, email, password)
+      router.push("/")
+    } catch (err) {
+      setError("Đăng ký thất bại. Vui lòng thử lại với thông tin khác.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -50,11 +74,19 @@ export default function RegisterPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input id="username" type="text" placeholder="Choose a username" className="pl-10 h-12 rounded-xl" />
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Choose a username"
+                  className="pl-10 h-12 rounded-xl"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
               </div>
             </div>
 
@@ -62,7 +94,14 @@ export default function RegisterPage() {
               <Label htmlFor="email">Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input id="email" type="email" placeholder="Enter your email" className="pl-10 h-12 rounded-xl" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  className="pl-10 h-12 rounded-xl"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
             </div>
 
@@ -75,6 +114,8 @@ export default function RegisterPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="Create a password"
                   className="pl-10 pr-10 h-12 rounded-xl"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
                   type="button"

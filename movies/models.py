@@ -183,3 +183,47 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"Comment của {self.user.username} trên {self.movie.title}"
+
+
+# === NEW: Watch History ===
+class WatchHistory(models.Model):
+    """Lưu lịch sử xem phim của người dùng"""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='watch_history'
+    )
+    movie = models.ForeignKey(
+        Movie,
+        on_delete=models.CASCADE,
+        related_name='watched_by'
+    )
+    last_watched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'movie')
+        ordering = ['-last_watched_at']
+
+    def __str__(self):
+        return f"{self.user.username} watched {self.movie.title} at {self.last_watched_at}"
+
+
+# === NEW: Comment Reaction (Like/Dislike) ===
+class CommentReaction(models.Model):
+    LIKE = 'like'
+    DISLIKE = 'dislike'
+    REACTION_CHOICES = (
+        (LIKE, 'Like'),
+        (DISLIKE, 'Dislike'),
+    )
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='comment_reactions')
+    comment = models.ForeignKey('Comment', on_delete=models.CASCADE, related_name='reactions')
+    reaction = models.CharField(max_length=7, choices=REACTION_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'comment')
+
+    def __str__(self):
+        return f"{self.user.username} {self.reaction} comment {self.comment_id}"

@@ -75,6 +75,13 @@ export default function WatchPage() {
         } catch (err) {
           console.warn("Failed to increment view:", err)
         }
+
+        // Record watch history (requires auth). Ignore errors if not logged in.
+        try {
+          await moviesAPI.watch(movieId)
+        } catch (err) {
+          // Not logged in or backend not available; safe to ignore
+        }
       } catch (err) {
         console.error("Failed to fetch movie:", err)
         setError("Không thể tải thông tin phim")
@@ -244,7 +251,19 @@ export default function WatchPage() {
                 size="lg"
                 variant="outline"
                 className="rounded-full bg-transparent"
-                onClick={() => setIsLiked(!isLiked)}
+                onClick={async () => {
+                  const next = !isLiked
+                  setIsLiked(next)
+                  if (next) {
+                    try {
+                      await moviesAPI.rateMovie(movieId, 5)
+                    } catch (err) {
+                      console.error("Failed to favorite movie:", err)
+                      alert("Không thể thêm vào yêu thích. Vui lòng đăng nhập.")
+                      setIsLiked(false)
+                    }
+                  }
+                }}
               >
                 <Heart className={`w-5 h-5 ${isLiked ? "fill-primary text-primary" : ""}`} />
               </Button>
@@ -281,8 +300,9 @@ export default function WatchPage() {
             <CommentInputBox
               onSubmit={async (content) => {
                 try {
-                  const newComment = await commentsAPI.createComment(movieId, content)
-                  setComments([newComment, ...comments])
+                  await commentsAPI.createComment(movieId, content)
+                  const refreshed = await moviesAPI.getComments(movieId)
+                  setComments(refreshed)
                 } catch (err) {
                   console.error("Failed to post comment:", err)
                   alert("Không thể đăng bình luận. Vui lòng đăng nhập.")
@@ -295,7 +315,13 @@ export default function WatchPage() {
             {comments.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">Chưa có bình luận nào</div>
             ) : (
-              comments.map((comment, index) => <CommentItem key={comment.id} comment={comment} index={index} />)
+              comments.map((comment, index) => (
+                <CommentItem
+                  key={comment.id ?? `${comment.username}-${comment.created_at}-${index}`}
+                  comment={comment}
+                  index={index}
+                />
+              ))
             )}
           </div>
         </motion.section>

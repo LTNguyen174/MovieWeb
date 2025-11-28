@@ -3,13 +3,15 @@
 import { useState } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Menu, X, User, Film, Home, Grid, LogIn } from "lucide-react"
+import { Search, Menu, X, User, Film, Home, Grid, LogIn, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/hooks/use-auth"
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
+  const { isAuthenticated, user, logout } = useAuth()
 
   if (typeof window !== "undefined") {
     window.addEventListener("scroll", () => {
@@ -67,12 +69,22 @@ export function Navbar() {
               </Button>
             </Link>
 
-            <Link href="/login" className="hidden md:block">
-              <Button className="rounded-full gap-2">
-                <LogIn className="w-4 h-4" />
-                Sign In
-              </Button>
-            </Link>
+            {isAuthenticated ? (
+              <div className="hidden md:flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Hi, {user?.username}</span>
+                <Button variant="outline" className="rounded-full gap-2" onClick={logout}>
+                  <LogOut className="w-4 h-4" />
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <Link href="/login" className="hidden md:block">
+                <Button className="rounded-full gap-2">
+                  <LogIn className="w-4 h-4" />
+                  Sign In
+                </Button>
+              </Link>
+            )}
 
             {/* Mobile Menu Button */}
             <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsMenuOpen(!isMenuOpen)}>
@@ -104,12 +116,19 @@ export function Navbar() {
                 </Link>
               ))}
               <div className="pt-4 border-t border-border">
-                <Link href="/login" onClick={() => setIsMenuOpen(false)}>
-                  <Button className="w-full rounded-full gap-2">
-                    <LogIn className="w-4 h-4" />
-                    Sign In
+                {isAuthenticated ? (
+                  <Button className="w-full rounded-full gap-2" onClick={() => { logout(); setIsMenuOpen(false) }}>
+                    <LogOut className="w-4 h-4" />
+                    Logout
                   </Button>
-                </Link>
+                ) : (
+                  <Link href="/login" onClick={() => setIsMenuOpen(false)}>
+                    <Button className="w-full rounded-full gap-2">
+                      <LogIn className="w-4 h-4" />
+                      Sign In
+                    </Button>
+                  </Link>
+                )}
               </div>
             </div>
           </motion.div>

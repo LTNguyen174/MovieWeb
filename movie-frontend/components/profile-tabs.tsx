@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Heart, MessageSquare, Key } from "lucide-react"
+import { Heart, MessageSquare, Key, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface Tab {
@@ -19,6 +19,7 @@ export function ProfileTabs({ activeTab, onTabChange }: ProfileTabsProps) {
   const tabs: Tab[] = [
     { id: "favorites", label: "Favorites", icon: Heart },
     { id: "comments", label: "My Comments", icon: MessageSquare },
+    { id: "history", label: "History", icon: Clock },
     { id: "password", label: "Change Password", icon: Key },
   ]
 

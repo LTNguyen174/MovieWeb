@@ -14,7 +14,7 @@ from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnl
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
 # CẬP NHẬT: Thêm Episode
-from .models import Movie, Category, Rating, Comment, Actor, Country, Episode
+from .models import Movie, Category, Rating, Comment, Actor, Country, Episode, WatchHistory, CommentReaction
 from .serializers import (
     MovieSerializer, MovieDetailSerializer, CategorySerializer,
     CommentSerializer, RatingCreateSerializer, CommentCreateSerializer,
@@ -58,9 +58,10 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['get'])
     def comments(self, request, tmdb_id=None):
         movie = self.get_object()
-        comments = movie.comments.all().order_by('-created_at')
-        # SỬA: Dùng CommentSerializer đầy đủ để ĐỌC
-        serializer = CommentSerializer(comments, many=True)
+        # Chỉ trả về bình luận cấp 1; replies sẽ nằm trong field 'replies'
+        comments = movie.comments.filter(parent__isnull=True).order_by('-created_at')
+        # SỬA: Dùng CommentSerializer đầy đủ để ĐỌC, kèm context
+        serializer = CommentSerializer(comments, many=True, context={'request': request})
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
@@ -92,6 +93,14 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'status': 'view incremented', 'total_views': movie.views})
         except Movie.DoesNotExist:
             return Response({'error': 'Movie not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='watch')
+    def watch(self, request, tmdb_id=None):
+        """Ghi lại lịch sử xem phim của user"""
+        movie = self.get_object()
+        user = request.user
+        WatchHistory.objects.update_or_create(user=user, movie=movie)
+        return Response({'status': 'watch recorded'}, status=status.HTTP_201_CREATED)
 
     # Gộp từ MovieViewSet thứ 2 (đã bị xóa)
     @action(detail=True, methods=['get'], url_path='recommendations')
@@ -134,13 +143,38 @@ class CommentViewSet(viewsets.ModelViewSet):
         # Khi 'đọc' (list/retrieve), dùng serializer Đọc (để thấy username)
         return CommentSerializer
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='react')
+    def react(self, request, pk=None):
+        """User like/dislike a comment by sending { reaction: 'like' | 'dislike' }"""
+        comment = self.get_object()
+        reaction = request.data.get('reaction')
+        if reaction not in [CommentReaction.LIKE, CommentReaction.DISLIKE]:
+            return Response({'error': 'Invalid reaction'}, status=status.HTTP_400_BAD_REQUEST)
+        CommentReaction.objects.update_or_create(user=request.user, comment=comment, defaults={'reaction': reaction})
+        data = CommentSerializer(comment, context={'request': request}).data
+        return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['delete'], permission_classes=[IsAuthenticated], url_path='react')
+    def remove_reaction(self, request, pk=None):
+        comment = self.get_object()
+        CommentReaction.objects.filter(user=request.user, comment=comment).delete()
+        data = CommentSerializer(comment, context={'request': request}).data
+        return Response(data, status=status.HTTP_200_OK)
+
     def perform_create(self, serializer):
         tmdb_id = serializer.validated_data.pop('movie_tmdb_id')
+        parent_id = serializer.validated_data.pop('parent_id', None)
         try:
             movie = Movie.objects.get(tmdb_id=tmdb_id)
         except Movie.DoesNotExist:
             raise ValidationError("Movie not found")
-        serializer.save(user=self.request.user, movie=movie)
+        parent = None
+        if parent_id:
+            try:
+                parent = Comment.objects.get(id=parent_id, movie=movie)
+            except Comment.DoesNotExist:
+                raise ValidationError("Parent comment not found")
+        serializer.save(user=self.request.user, movie=movie, parent=parent)
 
     
 class DashboardStatsView(APIView):

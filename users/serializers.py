@@ -3,6 +3,7 @@ from .models import User
 # Thêm import cho các model và serializer từ app 'movies'
 from movies.models import Rating, Comment
 from movies.serializers import MovieSerializer, CommentSerializer
+from movies.models import WatchHistory
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -50,3 +51,11 @@ class ChangePasswordSerializer(serializers.Serializer):
         # (Bạn có thể thêm logic validate độ mạnh mật khẩu ở đây)
 
         return attrs
+
+
+class WatchHistorySerializer(serializers.ModelSerializer):
+    movie = MovieSerializer(read_only=True)
+
+    class Meta:
+        model = WatchHistory
+        fields = ("movie", "last_watched_at")

@@ -2,10 +2,13 @@
 
 import { motion } from "framer-motion"
 import { formatDistanceToNow } from "date-fns"
-import { MoreVertical, Trash2, Edit2 } from "lucide-react"
+import { MoreVertical, Trash2, Edit2, ThumbsUp, ThumbsDown, Reply } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import Link from "next/link"
+import { useState } from "react"
+import { Textarea } from "@/components/ui/textarea"
 
 interface Comment {
   id: number
@@ -13,6 +16,13 @@ interface Comment {
   content: string
   created_at: string
   avatar?: string
+  movie_title?: string
+  movie_tmdb_id?: number
+  likes_count?: number
+  dislikes_count?: number
+  user_reaction?: 'like' | 'dislike' | null
+  replies?: Comment[]
+  parent_username?: string | null
 }
 
 interface CommentItemProps {
@@ -20,11 +30,16 @@ interface CommentItemProps {
   isOwner?: boolean
   onEdit?: (id: number) => void
   onDelete?: (id: number) => void
+  onReply?: (parentId: number, content: string) => Promise<void> | void
+  onReact?: (id: number, reaction: 'like' | 'dislike' | null) => Promise<void> | void
   index?: number
+  showReplies?: boolean
 }
 
-export function CommentItem({ comment, isOwner = false, onEdit, onDelete, index = 0 }: CommentItemProps) {
+export function CommentItem({ comment, isOwner = false, onEdit, onDelete, onReply, onReact, index = 0, showReplies = true }: CommentItemProps) {
   const timeAgo = formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })
+  const [isReplying, setIsReplying] = useState(false)
+  const [replyContent, setReplyContent] = useState("")
 
   return (
     <motion.div
@@ -71,7 +86,93 @@ export function CommentItem({ comment, isOwner = false, onEdit, onDelete, index 
           )}
         </div>
 
+        {comment.movie_title && (
+          <div className="text-xs text-muted-foreground mb-2">
+            On movie: {comment.movie_tmdb_id ? (
+              <Link href={`/movie/${comment.movie_tmdb_id}`} className="underline hover:text-foreground">
+                {comment.movie_title}
+              </Link>
+            ) : (
+              <span>{comment.movie_title}</span>
+            )}
+          </div>
+        )}
+
+        {comment.parent_username && (
+          <div className="text-xs text-muted-foreground mb-2">
+            Replying to <span className="font-medium">@{comment.parent_username}</span>
+          </div>
+        )}
+
         <p className="text-sm text-muted-foreground leading-relaxed">{comment.content}</p>
+
+        {/* Actions: Like / Dislike / Reply */}
+        <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+          <button
+            className={`flex items-center gap-1 hover:text-foreground ${comment.user_reaction === 'like' ? 'text-foreground' : ''}`}
+            onClick={() => onReact?.(comment.id, comment.user_reaction === 'like' ? null : 'like')}
+          >
+            <ThumbsUp className="w-4 h-4" />
+            <span>{comment.likes_count ?? 0}</span>
+          </button>
+          <button
+            className={`flex items-center gap-1 hover:text-foreground ${comment.user_reaction === 'dislike' ? 'text-foreground' : ''}`}
+            onClick={() => onReact?.(comment.id, comment.user_reaction === 'dislike' ? null : 'dislike')}
+          >
+            <ThumbsDown className="w-4 h-4" />
+            <span>{comment.dislikes_count ?? 0}</span>
+          </button>
+          <button className="flex items-center gap-1 hover:text-foreground" onClick={() => setIsReplying((v) => !v)}>
+            <Reply className="w-4 h-4" /> Reply
+          </button>
+        </div>
+
+        {isReplying && (
+          <div className="mt-3 pl-0 sm:pl-10">
+            <Textarea
+              value={replyContent}
+              onChange={(e) => setReplyContent(e.target.value)}
+              rows={2}
+              placeholder="Write a reply..."
+              className="mb-2"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="rounded-full"
+                disabled={!replyContent.trim()}
+                onClick={async () => {
+                  const content = replyContent.trim()
+                  if (!content) return
+                  await onReply?.(comment.id, content)
+                  setReplyContent("")
+                  setIsReplying(false)
+                }}
+              >
+                Reply
+              </Button>
+              <Button size="sm" variant="ghost" className="rounded-full" onClick={() => setIsReplying(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Nested replies */}
+        {showReplies && Array.isArray(comment.replies) && comment.replies.length > 0 && (
+          <div className="mt-4 space-y-3 pl-0 sm:pl-10">
+            {comment.replies.map((rep, i) => (
+              <CommentItem key={rep.id ?? `${rep.username}-${rep.created_at}-${i}`}
+                comment={rep}
+                index={i}
+                onReply={onReply}
+                onReact={onReact}
+                showReplies={showReplies}
+              />
+            ))}
+          </div>
+        )}
+
       </div>
     </motion.div>
   )

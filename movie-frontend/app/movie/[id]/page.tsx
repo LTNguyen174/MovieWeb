@@ -39,6 +39,12 @@ export default function MovieDetailPage() {
         // Fetch movie details
         const movieData = await moviesAPI.getMovie(movieId)
         setMovie(movieData)
+        // Prefill user's previous rating if available
+        if (typeof (movieData as any).user_rating === 'number') {
+          setUserRating((movieData as any).user_rating || 0)
+        } else {
+          setUserRating(0)
+        }
 
         // Fetch comments
         const commentsData = await moviesAPI.getComments(movieId)
@@ -182,7 +188,20 @@ export default function MovieDetailPage() {
                 size="lg"
                 variant="outline"
                 className="rounded-full bg-transparent"
-                onClick={() => setIsLiked(!isLiked)}
+                onClick={async () => {
+                  const next = !isLiked
+                  setIsLiked(next)
+                  if (next) {
+                    try {
+                      // Mark as favorite by saving a 5-star rating
+                      await moviesAPI.rateMovie(movieId, 5)
+                    } catch (err) {
+                      console.error("Failed to favorite movie:", err)
+                      alert("Không thể thêm vào yêu thích. Vui lòng đăng nhập.")
+                      setIsLiked(false)
+                    }
+                  }
+                }}
               >
                 <Heart className={`w-5 h-5 ${isLiked ? "fill-primary text-primary" : ""}`} />
               </Button>
@@ -219,8 +238,10 @@ export default function MovieDetailPage() {
             <CommentInputBox
               onSubmit={async (content) => {
                 try {
-                  const newComment = await commentsAPI.createComment(movieId, content)
-                  setComments([newComment, ...comments])
+                  await commentsAPI.createComment(movieId, content)
+                  // Refetch to ensure IDs and latest list
+                  const refreshed = await moviesAPI.getComments(movieId)
+                  setComments(refreshed)
                 } catch (err) {
                   console.error("Failed to post comment:", err)
                   alert("Không thể đăng bình luận. Vui lòng đăng nhập.")
@@ -233,7 +254,39 @@ export default function MovieDetailPage() {
             {comments.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">Chưa có bình luận nào</div>
             ) : (
-              comments.map((comment, index) => <CommentItem key={comment.id} comment={comment} index={index} />)
+              comments.map((comment, index) => (
+                <CommentItem
+                  key={comment.id ?? `${comment.username}-${comment.created_at}-${index}`}
+                  comment={{
+                    ...comment,
+                    movie_title: comment.movie_title ?? movie.title,
+                    movie_tmdb_id: comment.movie_tmdb_id ?? movieId,
+                  }}
+                  index={index}
+                  onReply={async (parentId, content) => {
+                    try {
+                      await commentsAPI.createComment(movieId, content, parentId)
+                      const refreshed = await moviesAPI.getComments(movieId)
+                      setComments(refreshed)
+                    } catch (err) {
+                      alert("Không thể trả lời bình luận. Vui lòng đăng nhập.")
+                    }
+                  }}
+                  onReact={async (id, reaction) => {
+                    try {
+                      if (reaction === null) {
+                        const updated = await commentsAPI.removeReaction(id)
+                        setComments((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+                      } else {
+                        const updated = await commentsAPI.react(id, reaction)
+                        setComments((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+                      }
+                    } catch (err) {
+                      alert("Không thể tương tác bình luận. Vui lòng đăng nhập.")
+                    }
+                  }}
+                />
+              ))
             )}
           </div>
         </motion.section>

@@ -3,9 +3,9 @@ from rest_framework.response import Response # <-- Thêm Response
 from rest_framework.permissions import AllowAny, IsAuthenticated # <-- Thêm IsAuthenticated
 from .serializers import RegisterSerializer
 # Thêm các import mới
-from .serializers import UserRatingSerializer, ChangePasswordSerializer
+from .serializers import UserRatingSerializer, ChangePasswordSerializer, WatchHistorySerializer
 from movies.serializers import CommentSerializer # Import từ app 'movies'
-from movies.models import Rating, Comment # Import model từ app 'movies'
+from movies.models import Rating, Comment, WatchHistory # Import model từ app 'movies'
 from .models import User
 
 class RegisterView(generics.CreateAPIView):
@@ -41,6 +41,12 @@ class MyCommentsView(generics.ListAPIView):
         user = self.request.user
         return Comment.objects.filter(user=user).order_by('-created_at')
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        # Không trả replies ở trang hồ sơ để hiển thị phẳng
+        context['include_replies'] = False
+        return context
+
 class ChangePasswordView(generics.UpdateAPIView):
     """
     API: PUT /api/auth/profile/change-password/
@@ -73,3 +79,16 @@ class ChangePasswordView(generics.UpdateAPIView):
                             status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class MyHistoryView(generics.ListAPIView):
+    """
+    API: GET /api/auth/profile/history/
+    Trả về lịch sử xem phim của user đã đăng nhập.
+    """
+    serializer_class = WatchHistorySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return WatchHistory.objects.filter(user=user).order_by('-last_watched_at')

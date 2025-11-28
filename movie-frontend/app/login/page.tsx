@@ -9,16 +9,31 @@ import { Film, Mail, Lock, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useAuth } from "@/hooks/use-auth"
+import { useRouter } from "next/navigation"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [usernameOrEmail, setUsernameOrEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const { login } = useAuth()
+  const router = useRouter()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError("")
     setIsLoading(true)
-    // Simulate API call
-    setTimeout(() => setIsLoading(false), 2000)
+    try {
+      // Backend expects username; allow email or username by sending as username field
+      await login(usernameOrEmail, password)
+      router.push("/")
+    } catch (err) {
+      setError("Đăng nhập thất bại. Vui lòng kiểm tra thông tin và thử lại.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -40,6 +55,7 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
+            {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="space-y-2">
               <Label htmlFor="email">Email or Username</Label>
               <div className="relative">
@@ -49,6 +65,8 @@ export default function LoginPage() {
                   type="text"
                   placeholder="Enter your email or username"
                   className="pl-10 h-12 rounded-xl"
+                  value={usernameOrEmail}
+                  onChange={(e) => setUsernameOrEmail(e.target.value)}
                 />
               </div>
             </div>
@@ -62,6 +80,8 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
                   className="pl-10 pr-10 h-12 rounded-xl"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
                   type="button"
