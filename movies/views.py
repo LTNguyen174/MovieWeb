@@ -64,6 +64,159 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = CommentSerializer(comments, many=True, context={'request': request})
         return Response(serializer.data)
 
+    # === TMDB-powered collections ===
+    def _collect_tmdb_movies(self, tmdb_ids, limit=10):
+        collected = []
+        for mid in tmdb_ids:
+            try:
+                movie_obj = Movie.objects.filter(tmdb_id=mid).first()
+                if not movie_obj:
+                    movie_obj, _ = import_movie_from_tmdb(mid, force_update=False, prefer_vi=True)
+                collected.append(movie_obj)
+                if len(collected) >= limit:
+                    break
+            except Exception:
+                continue
+        return collected
+
+    @action(detail=False, methods=['get'], url_path='trending')
+    def trending(self, request):
+        """TMDB Trending: window=day|week (default: day), limit=10; fallback to new-releases if empty."""
+        window = request.query_params.get('window', 'day')
+        if window not in ('day', 'week'):
+            window = 'day'
+        limit = int(request.query_params.get('limit', 10))
+        try:
+            url = f"{settings.TMDB_BASE_URL}/trending/movie/{window}"
+            params = { 'api_key': settings.TMDB_API_KEY }
+            resp = requests.get(url, params=params)
+            resp.raise_for_status()
+            results = resp.json().get('results', [])
+            ids = [r.get('id') for r in results if r.get('id')]
+            movies = self._collect_tmdb_movies(ids, limit=limit)
+            # Fallback: nếu không có phim, lấy từ new-releases (30 ngày gần đây)
+            if not movies:
+                from datetime import date, timedelta
+                today = date.today()
+                start = (today - timedelta(days=30)).isoformat()
+                end = today.isoformat()
+                disc_url = f"{settings.TMDB_BASE_URL}/discover/movie"
+                disc_params = {
+                    'api_key': settings.TMDB_API_KEY,
+                    'language': 'vi-VN',
+                    'sort_by': 'primary_release_date.desc',
+                    'include_adult': 'false',
+                    'include_video': 'false',
+                    'primary_release_date.gte': start,
+                    'primary_release_date.lte': end,
+                    'with_release_type': '2|3',
+                    'page': 1,
+                }
+                disc_resp = requests.get(disc_url, params=disc_params)
+                if disc_resp.ok:
+                    disc_results = disc_resp.json().get('results', [])
+                    disc_ids = [r.get('id') for r in disc_results if r.get('id')]
+                    movies = self._collect_tmdb_movies(disc_ids, limit=limit)
+            data = MovieSerializer(movies, many=True, context={'request': request}).data
+            return Response(data)
+        except requests.RequestException as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=False, methods=['get'], url_path='popular')
+    def popular(self, request):
+        """TMDB Popular movies: limit=10"""
+        limit = int(request.query_params.get('limit', 10))
+        try:
+            url = f"{settings.TMDB_BASE_URL}/movie/popular"
+            params = { 'api_key': settings.TMDB_API_KEY, 'language': 'vi-VN' }
+            resp = requests.get(url, params=params)
+            resp.raise_for_status()
+            results = resp.json().get('results', [])
+            ids = [r.get('id') for r in results if r.get('id')]
+            movies = self._collect_tmdb_movies(ids, limit=limit)
+            data = MovieSerializer(movies, many=True, context={'request': request}).data
+            return Response(data)
+        except requests.RequestException as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=False, methods=['get'], url_path='new-releases')
+    def new_releases(self, request):
+        """New releases near today (last 30 days): limit=10"""
+        limit = int(request.query_params.get('limit', 10))
+        from datetime import date, timedelta
+        today = date.today()
+        start = (today - timedelta(days=30)).isoformat()
+        end = today.isoformat()
+        try:
+            url = f"{settings.TMDB_BASE_URL}/discover/movie"
+            params = {
+                'api_key': settings.TMDB_API_KEY,
+                'language': 'vi-VN',
+                'sort_by': 'primary_release_date.desc',
+                'include_adult': 'false',
+                'include_video': 'false',
+                'primary_release_date.gte': start,
+                'primary_release_date.lte': end,
+                'with_release_type': '2|3',
+                'page': 1,
+            }
+            resp = requests.get(url, params=params)
+            resp.raise_for_status()
+            results = resp.json().get('results', [])
+            ids = [r.get('id') for r in results if r.get('id')]
+            movies = self._collect_tmdb_movies(ids, limit=limit)
+            data = MovieSerializer(movies, many=True, context={'request': request}).data
+            return Response(data)
+        except requests.RequestException as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=False, methods=['get'], url_path='top-rated')
+    def top_rated(self, request):
+        """TMDB Top Rated movies: limit=10"""
+        limit = int(request.query_params.get('limit', 10))
+        try:
+            url = f"{settings.TMDB_BASE_URL}/movie/top_rated"
+            params = { 'api_key': settings.TMDB_API_KEY, 'language': 'vi-VN' }
+            resp = requests.get(url, params=params)
+            resp.raise_for_status()
+            results = resp.json().get('results', [])
+            ids = [r.get('id') for r in results if r.get('id')]
+            movies = self._collect_tmdb_movies(ids, limit=limit)
+            data = MovieSerializer(movies, many=True, context={'request': request}).data
+            return Response(data)
+        except requests.RequestException as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=False, methods=['get'], url_path='year')
+    def by_year(self, request):
+        """Movies by specific year (default 2025): limit=10"""
+        try:
+            year = int(request.query_params.get('year', 2025))
+        except ValueError:
+            return Response({'error': 'Invalid year'}, status=status.HTTP_400_BAD_REQUEST)
+        limit = int(request.query_params.get('limit', 10))
+        try:
+            url = f"{settings.TMDB_BASE_URL}/discover/movie"
+            params = {
+                'api_key': settings.TMDB_API_KEY,
+                'language': 'vi-VN',
+                'sort_by': 'primary_release_date.desc',
+                'include_adult': 'false',
+                'include_video': 'false',
+                'primary_release_year': year,
+                'with_release_type': '2|3',
+                'page': 1,
+            }
+            resp = requests.get(url, params=params)
+            resp.raise_for_status()
+            results = resp.json().get('results', [])
+            ids = [r.get('id') for r in results if r.get('id')]
+            movies = self._collect_tmdb_movies(ids, limit=limit)
+            data = MovieSerializer(movies, many=True, context={'request': request}).data
+            return Response(data)
+        except requests.RequestException as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def rate(self, request, tmdb_id=None):
         movie = self.get_object() 

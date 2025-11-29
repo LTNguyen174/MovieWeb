@@ -103,6 +103,7 @@ export interface Movie {
   poster: string
   release_year: number
   categories: Category[]
+  description?: string
 }
 
 export interface MovieDetail extends Movie {
@@ -263,6 +264,30 @@ export const moviesAPI = {
   async getRecommendations(tmdbId: number): Promise<Movie[]> {
     const response = await fetch(`${API_BASE_URL}/movies/${tmdbId}/recommendations/`)
     if (!response.ok) throw new Error("Failed to fetch recommendations")
+    return response.json()
+  },
+
+  async getTrending(window: 'day' | 'week' = 'day', limit = 10): Promise<Movie[]> {
+    const response = await fetch(`${API_BASE_URL}/movies/trending/?window=${window}&limit=${limit}`)
+    if (!response.ok) throw new Error('Failed to fetch trending movies')
+    return response.json()
+  },
+
+  async getPopular(limit = 10): Promise<Movie[]> {
+    const response = await fetch(`${API_BASE_URL}/movies/popular/?limit=${limit}`)
+    if (!response.ok) throw new Error('Failed to fetch popular movies')
+    return response.json()
+  },
+
+  async getNewReleases(limit = 10): Promise<Movie[]> {
+    const response = await fetch(`${API_BASE_URL}/movies/new-releases/?limit=${limit}`)
+    if (!response.ok) throw new Error('Failed to fetch new releases')
+    return response.json()
+  },
+
+  async getTopRated(limit = 10): Promise<Movie[]> {
+    const response = await fetch(`${API_BASE_URL}/movies/top-rated/?limit=${limit}`)
+    if (!response.ok) throw new Error('Failed to fetch top rated movies')
     return response.json()
   },
 

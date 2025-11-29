@@ -22,24 +22,43 @@ export function CategorySelect({ categories: propCategories, selectedCategory, o
       return
     }
 
-    // Fetch categories từ API
+    // Fetch categories từ API giống trang categories
     async function fetchCategories() {
       try {
         setLoading(true)
-        const data = await categoriesAPI.getCategories()
-        setCategories(data)
+        const cats = await categoriesAPI.getCategories()
+        const catList: Array<{ id: number; name: string }> = Array.isArray(cats)
+          ? cats
+          : (cats && typeof cats === "object" && Array.isArray((cats as any).results)
+              ? (cats as any).results
+              : [])
+        
+        if (catList.length > 0) {
+          setCategories(catList)
+        }
       } catch (err) {
         console.error("Failed to fetch categories:", err)
-        // Fallback to default categories nếu lỗi
+        // Fallback danh sách cơ bản
         setCategories([
-          { id: 1, name: "Action" },
-          { id: 2, name: "Drama" },
-          { id: 3, name: "Comedy" },
-          { id: 4, name: "Sci-Fi" },
-          { id: 5, name: "Horror" },
-          { id: 6, name: "Romance" },
-          { id: 7, name: "Thriller" },
-          { id: 8, name: "Animation" },
+          { id: 1, name: "Hành động" },
+          { id: 2, name: "Phiêu lưu" },
+          { id: 3, name: "Hoạt hình" },
+          { id: 4, name: "Hài" },
+          { id: 5, name: "Tội phạm" },
+          { id: 6, name: "Tài liệu" },
+          { id: 7, name: "Chính kịch" },
+          { id: 8, name: "Gia đình" },
+          { id: 9, name: "Giả tưởng" },
+          { id: 10, name: "Lịch sử" },
+          { id: 11, name: "Kinh dị" },
+          { id: 12, name: "Âm nhạc" },
+          { id: 13, name: "Bí ẩn" },
+          { id: 14, name: "Lãng mạn" },
+          { id: 15, name: "Khoa học viễn tưởng" },
+          { id: 16, name: "Phim truyền hình" },
+          { id: 17, name: "Giật gân" },
+          { id: 18, name: "Chiến tranh" },
+          { id: 19, name: "Cổ điển" },
         ])
       } finally {
         setLoading(false)
@@ -51,7 +70,7 @@ export function CategorySelect({ categories: propCategories, selectedCategory, o
 
   // Đảm bảo displayCategories luôn là array
   const displayCategories = Array.isArray(categories) ? categories : []
-  const selectedCategoryName = displayCategories.find((c) => c.id === selectedCategory)?.name || "All Categories"
+  const selectedCategoryName = displayCategories.find((c) => c.id === selectedCategory)?.name || "Tất cả"
 
   return (
     <DropdownMenu>
@@ -61,9 +80,9 @@ export function CategorySelect({ categories: propCategories, selectedCategory, o
           <ChevronDown className="w-4 h-4 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[200px]">
+      <DropdownMenuContent align="start" className="w-[200px] max-h-[300px] overflow-auto">
         <DropdownMenuItem onClick={() => onSelect?.(null)} className="flex items-center justify-between">
-          All Categories
+          Tất cả
           {selectedCategory === null && <Check className="w-4 h-4 text-primary" />}
         </DropdownMenuItem>
         {displayCategories.map((category) => (

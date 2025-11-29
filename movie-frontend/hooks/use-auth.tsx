@@ -3,6 +3,7 @@
 
 import { useState, useEffect, createContext, useContext, type ReactNode } from "react"
 import { authAPI, getAccessToken, clearTokens } from "@/lib/api"
+import { useRouter } from "next/navigation"
 
 interface User {
   username: string
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     // Check if user is logged in on mount
@@ -60,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     authAPI.logout()
     setUser(null)
+    router.push("/login")
   }
 
   return (

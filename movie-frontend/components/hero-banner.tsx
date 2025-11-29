@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { Play, Plus, Info } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { categoriesAPI, moviesAPI, type Movie } from "@/lib/api"
 
 interface HeroBannerProps {
   movie?: {
+    tmdb_id: number
     title: string
     description?: string
     poster: string
@@ -18,6 +20,7 @@ interface HeroBannerProps {
 
 export function HeroBanner({ movie }: HeroBannerProps) {
   const defaultMovie = {
+    tmdb_id: 0,
     title: "Inception",
     description:
       "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a C.E.O., but his tragic past may doom the project and his team to disaster.",
@@ -31,6 +34,7 @@ export function HeroBanner({ movie }: HeroBannerProps) {
   }
 
   const [slides, setSlides] = useState<Array<{
+    tmdb_id: number
     title: string
     description?: string
     poster: string
@@ -59,6 +63,7 @@ export function HeroBanner({ movie }: HeroBannerProps) {
 
         const seen = new Set<number>()
         const items: Array<{
+          tmdb_id: number
           title: string
           description?: string
           poster: string
@@ -76,6 +81,7 @@ export function HeroBanner({ movie }: HeroBannerProps) {
             const desc = (detail && detail.description) || (m as any).description
             if (typeof desc === 'string' && desc.trim().length > 0) {
               items.push({
+                tmdb_id: (m as any).tmdb_id,
                 title: m.title,
                 description: desc,
                 poster: m.poster,
@@ -176,54 +182,55 @@ export function HeroBanner({ movie }: HeroBannerProps) {
             ))}
           </motion.div>
 
-          {/* Title */}
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="text-4xl md:text-6xl lg:text-7xl font-bold mb-4 text-balance"
-          >
-            {displayMovie.title}
-          </motion.h1>
+          {/* Title & Description - Clickable area */}
+          <Link href={`/movie/${(displayMovie as any).tmdb_id}`} className="block cursor-pointer">
+            {/* Title */}
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="text-4xl md:text-6xl lg:text-7xl font-bold mb-4 text-balance"
+            >
+              {displayMovie.title}
+            </motion.h1>
 
-          {/* Year */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-muted-foreground mb-4"
-          >
-            {displayMovie.release_year}
-          </motion.p>
+            {/* Year */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="text-muted-foreground mb-4"
+            >
+              {displayMovie.release_year}
+            </motion.p>
 
-          {/* Description */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="text-muted-foreground text-sm md:text-base lg:text-lg mb-8 line-clamp-3 md:line-clamp-4"
-          >
-            {truncate(displayMovie.description, 180)}
-          </motion.p>
+            {/* Description */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="text-muted-foreground text-sm md:text-base lg:text-lg mb-8 line-clamp-3 md:line-clamp-4"
+            >
+              {truncate(displayMovie.description, 180)}
+            </motion.p>
+          </Link>
 
           {/* Buttons */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7 }}
-            className="flex flex-wrap gap-4"
+            className="flex flex-wrap gap-4 pointer-events-auto"
           >
-            <Button size="lg" className="rounded-full gap-2 text-base">
-              <Play className="w-5 h-5 fill-current" />
-              Watch Now
-            </Button>
+            <Link href={`/watch/${(displayMovie as any).tmdb_id}`}>
+              <Button size="lg" className="rounded-full gap-2 text-base">
+                <Play className="w-5 h-5 fill-current" />
+                Watch Now
+              </Button>
+            </Link>
             <Button size="lg" variant="secondary" className="rounded-full gap-2 text-base">
               <Plus className="w-5 h-5" />
               My List
-            </Button>
-            <Button size="lg" variant="outline" className="rounded-full gap-2 text-base bg-transparent">
-              <Info className="w-5 h-5" />
-              More Info
             </Button>
           </motion.div>
         </motion.div>
@@ -233,19 +240,21 @@ export function HeroBanner({ movie }: HeroBannerProps) {
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="ml-auto hidden md:block"
+          className="ml-auto hidden md:block pointer-events-auto"
         >
-          <div className="relative w-56 md:w-72 lg:w-80 xl:w-96 aspect-[2/3] rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-black/30 backdrop-blur-sm">
-            {/* Use native img to avoid adding new imports */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={displayMovie.poster}
-              alt={displayMovie.title}
-              className="h-full w-full object-cover"
-              draggable={false}
-            />
-            <div className="absolute inset-0 pointer-events-none bg-gradient-to-l from-background/30 via-transparent to-transparent" />
-          </div>
+          <Link href={`/movie/${(displayMovie as any).tmdb_id}`}>
+            <div className="relative w-56 md:w-72 lg:w-80 xl:w-96 aspect-[2/3] rounded-xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-black/30 backdrop-blur-sm cursor-pointer">
+              {/* Use native img to avoid adding new imports */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={displayMovie.poster}
+                alt={displayMovie.title}
+                className="h-full w-full object-cover"
+                draggable={false}
+              />
+              <div className="absolute inset-0 pointer-events-none bg-gradient-to-l from-background/30 via-transparent to-transparent" />
+            </div>
+          </Link>
         </motion.div>
       </motion.div>
       {/* Dots Indicators */}
@@ -267,7 +276,7 @@ export function HeroBanner({ movie }: HeroBannerProps) {
           </div>
         )
       })()}
-    </div>
+      </div>
   )
 }
 
