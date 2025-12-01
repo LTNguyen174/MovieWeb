@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
+import { useSearchParams } from "next/navigation"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { CategoryCard } from "@/components/category-card"
@@ -9,6 +10,7 @@ import { MovieGrid } from "@/components/movie-grid"
 import { categoriesAPI, moviesAPI } from "@/lib/api"
 
 export default function CategoriesPage() {
+  const searchParams = useSearchParams()
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
   const [categories, setCategories] = useState<Array<{ id: number; name: string; movieCount?: number }>>([])
   const [loading, setLoading] = useState(true)
@@ -62,6 +64,17 @@ export default function CategoriesPage() {
       mounted = false
     }
   }, [])
+
+  // Handle URL parameter for direct category selection
+  useEffect(() => {
+    const categoryParam = searchParams.get('category')
+    if (categoryParam) {
+      const categoryId = parseInt(categoryParam)
+      if (!isNaN(categoryId)) {
+        setSelectedCategory(categoryId)
+      }
+    }
+  }, [searchParams])
 
   const selectedCategoryName = categories.find((c) => c.id === selectedCategory)?.name
 

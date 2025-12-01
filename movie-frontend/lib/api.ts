@@ -104,12 +104,14 @@ export interface Movie {
   release_year: number
   categories: Category[]
   description?: string
+  country?: string
 }
 
 export interface MovieDetail extends Movie {
   description: string
   average_rating: number
   user_rating?: number | null
+  is_favorite?: boolean
   trailer_url?: string | null
 }
 
@@ -212,6 +214,7 @@ export const moviesAPI = {
     release_year?: number
     page?: number
     page_size?: number
+    country?: string
   }): Promise<any> {
     const searchParams = new URLSearchParams()
     if (params?.search) searchParams.append("search", params.search)
@@ -219,11 +222,17 @@ export const moviesAPI = {
     if (params?.release_year) searchParams.append("release_year", params.release_year.toString())
     if (params?.page) searchParams.append("page", params.page.toString())
     if (params?.page_size) searchParams.append("page_size", params.page_size.toString())
+    if (params?.country) searchParams.append("country", params.country)
 
     const url = `${API_BASE_URL}/movies/?${searchParams.toString()}`
     const response = await fetch(url)
     if (!response.ok) throw new Error("Failed to fetch movies")
     return response.json()
+  },
+
+  // GET /api/categories/
+  async getCategories(): Promise<Category[]> {
+    return categoriesAPI.getCategories()
   },
 
   // GET /api/movies/{tmdb_id}/
@@ -248,6 +257,15 @@ export const moviesAPI = {
       body: JSON.stringify({ stars }),
     })
     if (!response.ok) throw new Error("Failed to rate movie")
+    return response.json()
+  },
+
+  // POST /api/movies/{tmdb_id}/favorite/
+  async toggleFavorite(tmdbId: number): Promise<{ is_favorite: boolean; message: string }> {
+    const response = await fetchWithAuth(`${API_BASE_URL}/movies/${tmdbId}/favorite/`, {
+      method: "POST",
+    })
+    if (!response.ok) throw new Error("Failed to toggle favorite")
     return response.json()
   },
 
@@ -310,7 +328,9 @@ export const categoriesAPI = {
   async getCategories(): Promise<Category[]> {
     const response = await fetch(`${API_BASE_URL}/categories/`)
     if (!response.ok) throw new Error("Failed to fetch categories")
-    return response.json()
+    const data = await response.json()
+    // Handle both paginated and non-paginated responses
+    return Array.isArray(data) ? data : (data?.results || [])
   },
 
   // GET /api/categories/{pk}/

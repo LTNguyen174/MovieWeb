@@ -24,9 +24,9 @@ class MyFavoritesView(generics.ListAPIView):
     permission_classes = [IsAuthenticated] # Chỉ user đã đăng nhập
 
     def get_queryset(self):
-        # Lọc ra các Rating chỉ thuộc về user đang gửi request
+        # Lọc ra các Rating chỉ thuộc về user đang gửi request và là favorites (4+ sao)
         user = self.request.user
-        return Rating.objects.filter(user=user).order_by('-created_at')
+        return Rating.objects.filter(user=user, stars__gte=4).order_by('-created_at')
 
 class MyCommentsView(generics.ListAPIView):
     """

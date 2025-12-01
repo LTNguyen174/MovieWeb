@@ -7,9 +7,11 @@ import { Play, Plus, Share2, Heart, Calendar, Clock, Star } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
+import { MovieCard } from "@/components/movie-card"
+import { Tag } from "@/components/tag"
 import { RatingStars } from "@/components/rating-stars"
-import { CommentItem } from "@/components/comment-item"
 import { CommentInputBox } from "@/components/comment-input-box"
+import { CommentItem } from "@/components/comment-item"
 import { RecommendationCarousel } from "@/components/recommendation-carousel"
 import { moviesAPI, commentsAPI, type MovieDetail, type Comment } from "@/lib/api"
 
@@ -45,6 +47,8 @@ export default function MovieDetailPage() {
         } else {
           setUserRating(0)
         }
+        // Set favorite state
+        setIsLiked((movieData as any).is_favorite || false)
 
         // Fetch comments
         const commentsData = await moviesAPI.getComments(movieId)
@@ -135,12 +139,7 @@ export default function MovieDetailPage() {
             {/* Categories */}
             <div className="flex flex-wrap gap-2 mb-4">
               {movie.categories.map((category) => (
-                <span
-                  key={category.id}
-                  className="px-3 py-1 text-sm font-medium bg-primary/20 text-primary rounded-full border border-primary/30"
-                >
-                  {category.name}
-                </span>
+                <Tag key={category.id} text={category.name} categoryId={category.id} />
               ))}
             </div>
 
@@ -180,26 +179,17 @@ export default function MovieDetailPage() {
                 <Play className="w-5 h-5 fill-current" />
                 Watch Now
               </Button>
-              <Button size="lg" variant="secondary" className="rounded-full gap-2">
-                <Plus className="w-5 h-5" />
-                Add to List
-              </Button>
               <Button
                 size="lg"
                 variant="outline"
                 className="rounded-full bg-transparent"
                 onClick={async () => {
-                  const next = !isLiked
-                  setIsLiked(next)
-                  if (next) {
-                    try {
-                      // Mark as favorite by saving a 5-star rating
-                      await moviesAPI.rateMovie(movieId, 5)
-                    } catch (err) {
-                      console.error("Failed to favorite movie:", err)
-                      alert("Không thể thêm vào yêu thích. Vui lòng đăng nhập.")
-                      setIsLiked(false)
-                    }
+                  try {
+                    const result = await moviesAPI.toggleFavorite(movieId)
+                    setIsLiked(result.is_favorite)
+                  } catch (err) {
+                    console.error("Failed to toggle favorite:", err)
+                    alert("Không thể cập nhật yêu thích. Vui lòng đăng nhập.")
                   }
                 }}
               >

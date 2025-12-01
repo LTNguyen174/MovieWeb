@@ -7,9 +7,11 @@ import { Play, Plus, Share2, Heart, Calendar, Clock, Star, ArrowLeft } from "luc
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
+import { MovieCard } from "@/components/movie-card"
+import { Tag } from "@/components/tag"
 import { RatingStars } from "@/components/rating-stars"
-import { CommentItem } from "@/components/comment-item"
 import { CommentInputBox } from "@/components/comment-input-box"
+import { CommentItem } from "@/components/comment-item"
 import { RecommendationCarousel } from "@/components/recommendation-carousel"
 import { moviesAPI, commentsAPI, type MovieDetail, type Comment } from "@/lib/api"
 
@@ -64,6 +66,14 @@ export default function WatchPage() {
         // Fetch movie details
         const movieData = await moviesAPI.getMovie(movieId)
         setMovie(movieData)
+        // Prefill user's previous rating if available
+        if (typeof (movieData as any).user_rating === 'number') {
+          setUserRating((movieData as any).user_rating || 0)
+        } else {
+          setUserRating(0)
+        }
+        // Set favorite state
+        setIsLiked((movieData as any).is_favorite || false)
 
         // Fetch comments
         const commentsData = await moviesAPI.getComments(movieId)
@@ -198,12 +208,7 @@ export default function WatchPage() {
             {/* Categories */}
             <div className="flex flex-wrap gap-2 mb-4">
               {movie.categories.map((category) => (
-                <span
-                  key={category.id}
-                  className="px-3 py-1 text-sm font-medium bg-primary/20 text-primary rounded-full border border-primary/30"
-                >
-                  {category.name}
-                </span>
+                <Tag key={category.id} text={category.name} categoryId={category.id} />
               ))}
             </div>
 
@@ -243,25 +248,17 @@ export default function WatchPage() {
                 <Play className="w-5 h-5 fill-current" />
                 Phát lại
               </Button>
-              <Button size="lg" variant="secondary" className="rounded-full gap-2">
-                <Plus className="w-5 h-5" />
-                Add to List
-              </Button>
               <Button
                 size="lg"
                 variant="outline"
                 className="rounded-full bg-transparent"
                 onClick={async () => {
-                  const next = !isLiked
-                  setIsLiked(next)
-                  if (next) {
-                    try {
-                      await moviesAPI.rateMovie(movieId, 5)
-                    } catch (err) {
-                      console.error("Failed to favorite movie:", err)
-                      alert("Không thể thêm vào yêu thích. Vui lòng đăng nhập.")
-                      setIsLiked(false)
-                    }
+                  try {
+                    const result = await moviesAPI.toggleFavorite(movieId)
+                    setIsLiked(result.is_favorite)
+                  } catch (err) {
+                    console.error("Failed to toggle favorite:", err)
+                    alert("Không thể cập nhật yêu thích. Vui lòng đăng nhập.")
                   }
                 }}
               >

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Menu, X, User, Film, Home, Grid, LogIn, LogOut } from "lucide-react"
+import { Search, Menu, X, User, Film, Home, Grid, LogIn, LogOut, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
@@ -22,6 +22,7 @@ export function Navbar() {
   const navLinks = [
     { href: "/", label: "Home", icon: Home },
     { href: "/categories", label: "Categories", icon: Grid },
+    { href: "/search", label: "Advanced Search", icon: Filter },
     { href: "/profile", label: "Profile", icon: User },
   ]
 
@@ -63,11 +64,11 @@ export function Navbar() {
 
           {/* Right Section */}
           <div className="flex items-center gap-4">
-            <Link href="/" className="hidden sm:block">
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Search className="w-5 h-5" />
+            {/* <Link href="/search" className="hidden sm:block">
+              <Button variant="ghost" size="icon" className="rounded-full" title="Tìm kiếm nâng cao">
+                <Filter className="w-5 h-5" />
               </Button>
-            </Link>
+            </Link> */}
 
             {isAuthenticated ? (
               <div className="hidden md:flex items-center gap-2">

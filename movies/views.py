@@ -3,7 +3,7 @@ from .tmdb_service import import_movie_from_tmdb
 from django.conf import settings # Để lấy API Key
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAdminUser
-from django.db.models import Sum, Count, Q
+from django.db.models import Sum, Count, Q, Avg
 from users.models import User
 from rest_framework import viewsets, generics, status
 from rest_framework.pagination import PageNumberPagination
@@ -40,10 +40,45 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
 
     lookup_field = 'tmdb_id'
     permission_classes = [IsAuthenticatedOrReadOnly]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ['categories', 'release_year'] 
+    filter_backends = [SearchFilter] 
     search_fields = ['title'] 
     pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        queryset = Movie.objects.all().order_by('-views')
+        
+        # Debug: Print all parameters
+        print("Search parameters:", self.request.query_params)
+        
+        # Handle multiple categories filtering
+        categories = self.request.query_params.get('categories')
+        if categories:
+            # Split comma-separated category IDs and filter
+            category_ids = categories.split(',')
+            print(f"Filtering by categories: {category_ids}")
+            queryset = queryset.filter(categories__id__in=category_ids)
+            print(f"After category filter: {queryset.count()} movies")
+        
+        # Handle year filtering
+        release_year = self.request.query_params.get('release_year')
+        if release_year:
+            print(f"Filtering by year: {release_year}")
+            queryset = queryset.filter(release_year=release_year)
+            print(f"After year filter: {queryset.count()} movies")
+        
+        # Custom country filter by name
+        country_name = self.request.query_params.get('country')
+        if country_name:
+            print(f"Filtering by country: {country_name}")
+            queryset = queryset.filter(country__name__icontains=country_name)
+            print(f"After country filter: {queryset.count()} movies")
+        
+        # Debug: Show sample movies that match
+        print("Sample movies in final queryset:")
+        for movie in queryset[:3]:
+            print(f"- {movie.title} ({movie.release_year}) - {movie.country}")
+            
+        return queryset
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -172,20 +207,24 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='top-rated')
     def top_rated(self, request):
-        """TMDB Top Rated movies: limit=10"""
+        """
+        Top rated movies dựa trên rating nội bộ:
+        - Tính trung bình số sao trong model Rating
+        - Chỉ lấy các phim đã có ít nhất 1 rating
+        - Sắp xếp theo average_rating giảm dần, rồi đến lượt xem
+        - Giới hạn theo tham số `limit` (mặc định 10)
+        """
         limit = int(request.query_params.get('limit', 10))
-        try:
-            url = f"{settings.TMDB_BASE_URL}/movie/top_rated"
-            params = { 'api_key': settings.TMDB_API_KEY, 'language': 'vi-VN' }
-            resp = requests.get(url, params=params)
-            resp.raise_for_status()
-            results = resp.json().get('results', [])
-            ids = [r.get('id') for r in results if r.get('id')]
-            movies = self._collect_tmdb_movies(ids, limit=limit)
-            data = MovieSerializer(movies, many=True, context={'request': request}).data
-            return Response(data)
-        except requests.RequestException as e:
-            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        movies = (
+            Movie.objects
+            .annotate(avg_rating=Avg('ratings__stars'))
+            .filter(avg_rating__isnull=False)
+            .order_by('-avg_rating', '-views')[:limit]
+        )
+
+        data = MovieSerializer(movies, many=True, context={'request': request}).data
+        return Response(data)
 
     @action(detail=False, methods=['get'], url_path='year')
     def by_year(self, request):
@@ -246,6 +285,76 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'status': 'view incremented', 'total_views': movie.views})
         except Movie.DoesNotExist:
             return Response({'error': 'Movie not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['get'], url_path='debug')
+    def debug_data(self, request):
+        """Debug endpoint to check database content"""
+        from django.http import JsonResponse
+        
+        movies = Movie.objects.all()[:5]
+        data = []
+        for movie in movies:
+            data.append({
+                'title': movie.title,
+                'release_year': movie.release_year,
+                'country': movie.country.name if movie.country else None,
+                'categories': [cat.name for cat in movie.categories.all()]
+            })
+        
+        # Also check country and category counts
+        countries = Country.objects.all()
+        categories = Category.objects.all()
+        
+        # Get movies by specific search criteria
+        search_movies = Movie.objects.all()
+        categories_param = request.query_params.get('categories')
+        if categories_param:
+            category_ids = categories_param.split(',')
+            search_movies = search_movies.filter(categories__id__in=category_ids)
+        
+        release_year = request.query_params.get('release_year')
+        if release_year:
+            search_movies = search_movies.filter(release_year=release_year)
+        
+        country_name = request.query_params.get('country')
+        if country_name:
+            search_movies = search_movies.filter(country__name__icontains=country_name)
+        
+        return JsonResponse({
+            'sample_movies': data,
+            'total_movies': Movie.objects.count(),
+            'filtered_movies_count': search_movies.count(),
+            'countries': [{'id': c.id, 'name': c.name} for c in countries],
+            'categories': [{'id': c.id, 'name': c.name} for c in categories],
+            'filtered_sample': [{
+                'title': m.title,
+                'country': m.country.name if m.country else None,
+                'categories': [cat.name for cat in m.categories.all()]
+            } for m in search_movies[:3]]
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='favorite')
+    def toggle_favorite(self, request, tmdb_id=None):
+        """Toggle favorite status of a movie (add/remove from favorites)"""
+        movie = self.get_object()
+        user = request.user
+        
+        # Check if user has already rated this movie
+        existing_rating = Rating.objects.filter(user=user, movie=movie).first()
+        
+        if existing_rating and existing_rating.stars >= 4:
+            # Remove from favorites by setting rating to 3
+            existing_rating.stars = 3
+            existing_rating.save()
+            return Response({'is_favorite': False, 'message': 'Removed from favorites'})
+        else:
+            # Add to favorites by setting rating to 5
+            Rating.objects.update_or_create(
+                user=user,
+                movie=movie,
+                defaults={'stars': 5}
+            )
+            return Response({'is_favorite': True, 'message': 'Added to favorites'})
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated], url_path='watch')
     def watch(self, request, tmdb_id=None):

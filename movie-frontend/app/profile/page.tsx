@@ -40,40 +40,61 @@ export default function ProfilePage() {
   }, [isAuthenticated, router])
 
   // Fetch profile data
-  useEffect(() => {
+  const loadProfileData = async () => {
     let mounted = true
-    const load = async () => {
-      setLoading(true)
-      setError("")
+    setLoading(true)
+    setError("")
+    try {
+      // Fetch independently so one failure doesn't block others
       try {
-        // Fetch independently so one failure doesn't block others
-        try {
-          const fav = await profileAPI.getFavorites()
-          if (mounted) setFavorites(Array.isArray(fav) ? fav : [])
-        } catch (e) {
-          console.error("Load favorites failed", e)
-        }
+        const fav = await profileAPI.getFavorites()
+        if (mounted) setFavorites(Array.isArray(fav) ? fav : [])
+      } catch (e) {
+        console.error("Load favorites failed", e)
+      }
 
-        try {
-          const com = await profileAPI.getMyComments()
-          if (mounted) setComments(Array.isArray(com) ? com : [])
-        } catch (e) {
-          console.error("Load comments failed", e)
-        }
+      try {
+        const com = await profileAPI.getMyComments()
+        if (mounted) setComments(Array.isArray(com) ? com : [])
+      } catch (e) {
+        console.error("Load comments failed", e)
+      }
 
-        try {
-          const his = await profileAPI.getHistory()
-          if (mounted) setHistory(Array.isArray(his) ? his : [])
-        } catch (e) {
-          console.error("Load history failed", e)
-        }
-      } finally {
-        if (mounted) setLoading(false)
+      try {
+        const his = await profileAPI.getHistory()
+        if (mounted) setHistory(Array.isArray(his) ? his : [])
+      } catch (e) {
+        console.error("Load history failed", e)
+      }
+    } finally {
+      if (mounted) setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isAuthenticated) loadProfileData()
+  }, [isAuthenticated])
+
+  // Refresh data when page gains focus (user navigates back from movie page)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isAuthenticated) {
+        loadProfileData()
       }
     }
-    if (isAuthenticated) load()
+
+    const handleFocus = () => {
+      if (isAuthenticated) {
+        loadProfileData()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
     return () => {
-      mounted = false
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
     }
   }, [isAuthenticated])
 

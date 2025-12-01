@@ -23,12 +23,11 @@ export default function HomePage() {
   useEffect(() => {
     let cancelled = false
     
-    // Cache keys
+    // Cache keys (KHÔNG cache Top Rated để luôn cập nhật theo rating mới nhất)
     const CACHE_KEYS = {
       trendingDay: 'trending_day_cache',
       trendingWeek: 'trending_week_cache', 
       newReleases: 'new_releases_cache',
-      topRated: 'top_rated_cache'
     }
     
     // Try to load from cache first
@@ -38,13 +37,11 @@ export default function HomePage() {
           trendingDay: JSON.parse(localStorage.getItem(CACHE_KEYS.trendingDay) || '[]'),
           trendingWeek: JSON.parse(localStorage.getItem(CACHE_KEYS.trendingWeek) || '[]'),
           newReleases: JSON.parse(localStorage.getItem(CACHE_KEYS.newReleases) || '[]'),
-          topRated: JSON.parse(localStorage.getItem(CACHE_KEYS.topRated) || '[]')
         }
         
         if (cached.trendingDay.length > 0) setTrendingDay(cached.trendingDay)
         if (cached.trendingWeek.length > 0) setTrendingWeek(cached.trendingWeek)
         if (cached.newReleases.length > 0) setNewReleases(cached.newReleases)
-        if (cached.topRated.length > 0) setTopRated(cached.topRated)
         
         return cached
       } catch {
@@ -53,44 +50,46 @@ export default function HomePage() {
     }
     
     async function load() {
-      // Load from cache first
+      // Load từ cache trước để hiển thị nhanh cho 3 list TMDB
       const cached = loadFromCache()
       
       try {
-        // Load tuần tự để hiển thị nhanh hơn
-        const td = await moviesAPI.getTrending("day", 10)
-        if (!cancelled) {
-          setTrendingDay(td)
-          localStorage.setItem(CACHE_KEYS.trendingDay, JSON.stringify(td))
-        }
-
-        const tw = await moviesAPI.getTrending("week", 10)
-        if (!cancelled) {
-          setTrendingWeek(tw)
-          localStorage.setItem(CACHE_KEYS.trendingWeek, JSON.stringify(tw))
-        }
-
-        const nr = await moviesAPI.getNewReleases(10)
-        if (!cancelled) {
-          setNewReleases(nr)
-          localStorage.setItem(CACHE_KEYS.newReleases, JSON.stringify(nr))
-        }
-
+        // 1) Ưu tiên gọi Top Rated (rating nội bộ) trước để hiển thị sớm
         const tr = await moviesAPI.getTopRated(10)
         if (!cancelled) {
           setTopRated(tr)
-          localStorage.setItem(CACHE_KEYS.topRated, JSON.stringify(tr))
         }
 
-        if (!cancelled) setYear2025([])
+        // 2) Sau đó gọi 3 API TMDB song song
+        const [td, tw, nr] = await Promise.all([
+          moviesAPI.getTrending("day", 10),
+          moviesAPI.getTrending("week", 10),
+          moviesAPI.getNewReleases(10),
+        ])
+
+        if (!cancelled) {
+          setTrendingDay(td)
+          setTrendingWeek(tw)
+          setNewReleases(nr)
+
+          // Cập nhật cache cho 3 list TMDB
+          localStorage.setItem(CACHE_KEYS.trendingDay, JSON.stringify(td))
+          localStorage.setItem(CACHE_KEYS.trendingWeek, JSON.stringify(tw))
+          localStorage.setItem(CACHE_KEYS.newReleases, JSON.stringify(nr))
+
+          setYear2025([])
+        }
       } catch (err) {
         console.warn('Failed to load movies, using cache:', err)
-        // Nếu API lỗi, dùng cache đã có
-        if (cached && !cancelled) {
-          setTrendingDay(cached.trendingDay)
-          setTrendingWeek(cached.trendingWeek)
-          setNewReleases(cached.newReleases)
-          setTopRated(cached.topRated)
+        if (!cancelled) {
+          // Nếu API lỗi, dùng cache đã có cho 3 list TMDB
+          if (cached) {
+            setTrendingDay(cached.trendingDay)
+            setTrendingWeek(cached.trendingWeek)
+            setNewReleases(cached.newReleases)
+          }
+          // Top Rated không cache, nếu API lỗi thì để rỗng
+          setTopRated([])
           setYear2025([])
         }
       }
