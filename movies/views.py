@@ -53,11 +53,16 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
         # Handle multiple categories filtering
         categories = self.request.query_params.get('categories')
         if categories:
-            # Split comma-separated category IDs and filter
-            category_ids = categories.split(',')
-            print(f"Filtering by categories: {category_ids}")
-            queryset = queryset.filter(categories__id__in=category_ids)
-            print(f"After category filter: {queryset.count()} movies")
+            # categories có thể là chuỗi "1,3,4"
+            raw_ids = [c for c in categories.split(',') if c.strip()]
+            category_ids = [int(c) for c in raw_ids]
+            print(f"Filtering by categories (AND): {category_ids}")
+
+            # Áp dụng filter AND: phim phải chứa TẤT CẢ các category đã chọn
+            for cid in category_ids:
+                queryset = queryset.filter(categories__id=cid)
+
+            print(f"After category AND filter: {queryset.count()} movies")
         
         # Handle year filtering
         release_year = self.request.query_params.get('release_year')
@@ -73,6 +78,9 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(country__name__icontains=country_name)
             print(f"After country filter: {queryset.count()} movies")
         
+        # Loại bỏ trùng lặp do join ManyToMany (vd: phim có nhiều categories khớp filter)
+        queryset = queryset.distinct()
+
         # Debug: Show sample movies that match
         print("Sample movies in final queryset:")
         for movie in queryset[:3]:

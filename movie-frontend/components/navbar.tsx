@@ -72,7 +72,7 @@ export function Navbar() {
 
             {isAuthenticated ? (
               <div className="hidden md:flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Hi, {user?.username}</span>
+                <span className="text-sm text-muted-foreground">Hi, {user?.nickname || user?.username}</span>
                 <Button variant="outline" className="rounded-full gap-2" onClick={logout}>
                   <LogOut className="w-4 h-4" />
                   Logout

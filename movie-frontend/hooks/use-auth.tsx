@@ -2,11 +2,12 @@
 "use client"
 
 import { useState, useEffect, createContext, useContext, type ReactNode } from "react"
-import { authAPI, getAccessToken, clearTokens } from "@/lib/api"
+import { authAPI, profileAPI, getAccessToken, clearTokens } from "@/lib/api"
 import { useRouter } from "next/navigation"
 
 interface User {
   username: string
+  nickname?: string | null
   isAdmin: boolean
 }
 
@@ -17,6 +18,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>
   register: (username: string, email: string, password: string) => Promise<void>
   logout: () => void
+  updateUserNickname: (nickname: string | null) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -33,9 +35,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Decode JWT to get user info (basic decode, không verify)
       try {
         const payload = JSON.parse(atob(token.split(".")[1]))
+        const username = payload.username || "User"
         setUser({
-          username: payload.username || "User",
+          username: username,
+          nickname: null, // Will be loaded from profile
           isAdmin: payload.is_staff || false,
+        })
+        
+        // Load profile to get nickname
+        profileAPI.getProfile().then(profile => {
+          setUser(prev => prev ? { ...prev, nickname: profile.nickname } : null)
+        }).catch(() => {
+          // Ignore profile load errors, user still logged in
         })
       } catch {
         clearTokens()
@@ -47,10 +58,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     const tokens = await authAPI.login(username, password)
     const payload = JSON.parse(atob(tokens.access.split(".")[1]))
-    setUser({
+    const loggedInUser = {
       username: payload.username || username,
+      nickname: null, // Will be loaded from profile
       isAdmin: payload.is_staff || false,
-    })
+    }
+    setUser(loggedInUser)
+    
+    // Load profile to get nickname after login
+    try {
+      const profile = await profileAPI.getProfile()
+      setUser(prev => prev ? { ...prev, nickname: profile.nickname } : null)
+    } catch {
+      // Ignore profile load errors, user still logged in
+    }
   }
 
   const register = async (username: string, email: string, password: string) => {
@@ -65,6 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login")
   }
 
+  const updateUserNickname = (nickname: string | null) => {
+    if (user) {
+      setUser({ ...user, nickname })
+    }
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -74,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        updateUserNickname,
       }}
     >
       {children}

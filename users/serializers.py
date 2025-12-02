@@ -59,3 +59,27 @@ class WatchHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = WatchHistory
         fields = ("movie", "last_watched_at")
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """
+    Serializer cho việc xem/cập nhật profile user.
+    Cho phép chỉnh: username, nickname, date_of_birth, country, avatar.
+    """
+    avatar = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model = User
+        fields = ("username", "email", "nickname", "date_of_birth", "country", "avatar")
+        read_only_fields = ("email",)
+
+    def to_representation(self, instance):
+        """
+        Trả về avatar dưới dạng absolute URL để frontend Next.js load đúng từ backend.
+        """
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        avatar_path = data.get("avatar")
+        if avatar_path and request is not None:
+            data["avatar"] = request.build_absolute_uri(avatar_path)
+        return data

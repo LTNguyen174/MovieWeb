@@ -44,6 +44,16 @@ function getAuthHeaders(): HeadersInit {
   return headers
 }
 
+// Headers với JWT nhưng KHÔNG set Content-Type (dùng cho FormData, upload file)
+function getAuthHeadersNoContentType(): HeadersInit {
+  const token = getAccessToken()
+  const headers: HeadersInit = {}
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`
+  }
+  return headers
+}
+
 // Auto refresh token khi access token hết hạn
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const response = await fetch(url, {
@@ -139,6 +149,15 @@ export interface AdminStats {
   movie_count: number
   comment_count: number
   total_views: number
+}
+
+export interface UserProfile {
+  username: string
+  email: string
+  nickname?: string | null
+  date_of_birth?: string | null
+  country?: string | null
+  avatar?: string | null
 }
 
 export interface TMDBSearchResult {
@@ -451,6 +470,59 @@ export const profileAPI = {
     if (!response.ok) throw new Error("Failed to fetch history")
     const data = await response.json()
     return Array.isArray(data) ? data : (data?.results ?? [])
+  },
+
+  // GET /api/auth/profile/
+  async getProfile(): Promise<UserProfile> {
+    const response = await fetchWithAuth(`${API_BASE_URL}/auth/profile/`)
+    if (!response.ok) throw new Error("Failed to fetch profile")
+    return response.json()
+  },
+
+  // PUT /api/auth/profile/
+  async updateProfile(data: {
+    username?: string
+    nickname?: string | null
+    date_of_birth?: string
+    country?: string
+    avatarFile?: File | null
+  }): Promise<UserProfile> {
+    const formData = new FormData()
+    if (data.username) formData.append("username", data.username)
+    if (data.nickname !== undefined) {
+      if (data.nickname === null) {
+        formData.append("nickname", "") // Gửi chuỗi rỗng để xóa nickname
+      } else {
+        formData.append("nickname", data.nickname)
+      }
+    }
+    if (data.date_of_birth) formData.append("date_of_birth", data.date_of_birth)
+    if (data.country) formData.append("country", data.country)
+    if (data.avatarFile) formData.append("avatar", data.avatarFile)
+
+    const response = await fetch(`${API_BASE_URL}/auth/profile/`, {
+      method: "PATCH",
+      body: formData,
+      headers: getAuthHeadersNoContentType(), // để browser tự set multipart boundary
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      let errorMessage = "Failed to update profile"
+      
+      if (errorData && typeof errorData === 'object') {
+        const parts: string[] = []
+        Object.entries(errorData).forEach(([key, val]) => {
+          if (Array.isArray(val)) parts.push(`${key}: ${val.join(', ')}`)
+          else if (typeof val === 'string') parts.push(`${key}: ${val}`)
+        })
+        if (parts.length) errorMessage = parts.join(' | ')
+      }
+      
+      throw new Error(errorMessage)
+    }
+    
+    return response.json()
   },
 }
 

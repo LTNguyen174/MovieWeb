@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/hooks/use-auth"
-import { profileAPI, commentsAPI } from "@/lib/api"
+import { profileAPI, commentsAPI, type UserProfile } from "@/lib/api"
 import { useRouter } from "next/navigation"
 
 export default function ProfilePage() {
@@ -29,6 +29,10 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [passwordMsg, setPasswordMsg] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [previewAvatar, setPreviewAvatar] = useState<string | null>(null)
+  const [pendingAvatar, setPendingAvatar] = useState<File | null>(null)
+  const [showAvatarDialog, setShowAvatarDialog] = useState(false)
   const { isAuthenticated, user } = useAuth()
   const router = useRouter()
 
@@ -45,6 +49,14 @@ export default function ProfilePage() {
     setLoading(true)
     setError("")
     try {
+      // Load thông tin profile cơ bản
+      try {
+        const p = await profileAPI.getProfile()
+        if (mounted) setProfile(p)
+      } catch (e) {
+        console.error("Load profile failed", e)
+      }
+
       // Fetch independently so one failure doesn't block others
       try {
         const fav = await profileAPI.getFavorites()
@@ -120,6 +132,32 @@ export default function ProfilePage() {
     }
   }
 
+  const uploadAvatar = async (file: File) => {
+    // Hiển thị ảnh mới ngay lập tức (optimistic preview)
+    const objectUrl = URL.createObjectURL(file)
+    setPreviewAvatar(objectUrl)
+
+    try {
+      const updated = await profileAPI.updateProfile({ avatarFile: file })
+      setProfile(updated)
+      // dùng URL từ server, bỏ preview tạm
+      setPreviewAvatar(null)
+      URL.revokeObjectURL(objectUrl)
+    } catch (e) {
+      console.error("Failed to update avatar", e)
+      alert("Không thể cập nhật ảnh đại diện.")
+      // revert preview
+      setPreviewAvatar(null)
+      URL.revokeObjectURL(objectUrl)
+    }
+  }
+
+  const handleAvatarChange = (file: File | null) => {
+    if (!file) return
+    setPendingAvatar(file)
+    setShowAvatarDialog(true)
+  }
+
   return (
     <div className="min-h-screen">
       <Navbar />
@@ -127,8 +165,55 @@ export default function ProfilePage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
         {/* Profile Header */}
         <section className="mb-12">
-          <ProfileCard user={{ username: user?.username || "User", email: "", joinedAt: new Date().toISOString() }} />
+          <ProfileCard
+            user={{
+              username: profile?.username || user?.username || "User",
+              nickname: profile?.nickname || user?.nickname || null,
+              email: profile?.email || "",
+              avatar: previewAvatar || profile?.avatar || undefined,
+              joinedAt: profile ? profile.date_of_birth || new Date().toISOString() : new Date().toISOString(),
+            }}
+            onEditProfile={() => router.push("/profile/edit")}
+            onChangeAvatar={handleAvatarChange}
+          />
         </section>
+
+        {/* Avatar confirm dialog */}
+        {showAvatarDialog && pendingAvatar && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-card border border-border rounded-xl p-6 max-w-sm w-full space-y-4">
+              <h2 className="text-lg font-semibold">Đổi ảnh đại diện</h2>
+              <p className="text-sm text-muted-foreground">
+                Bạn có chắc muốn sử dụng ảnh này làm ảnh đại diện mới?
+              </p>
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => {
+                    setShowAvatarDialog(false)
+                    setPendingAvatar(null)
+                  }}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    const file = pendingAvatar
+                    setShowAvatarDialog(false)
+                    setPendingAvatar(null)
+                    if (file) {
+                      await uploadAvatar(file)
+                    }
+                  }}
+                >
+                  Đồng ý
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <ProfileTabs activeTab={activeTab} onTabChange={setActiveTab} />
@@ -265,6 +350,8 @@ export default function ProfilePage() {
               </form>
             </div>
           )}
+
+          {/* Không render form profile ở đây nữa, chuyển sang trang /profile/edit */}
         </motion.div>
       </main>
 

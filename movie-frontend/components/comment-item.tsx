@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 interface Comment {
   id: number
   username: string
+  nickname?: string | null
   content: string
   created_at: string
   avatar?: string
@@ -23,6 +24,7 @@ interface Comment {
   user_reaction?: 'like' | 'dislike' | null
   replies?: Comment[]
   parent_username?: string | null
+  parent_nickname?: string | null
 }
 
 interface CommentItemProps {
@@ -40,6 +42,8 @@ export function CommentItem({ comment, isOwner = false, onEdit, onDelete, onRepl
   const timeAgo = formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })
   const [isReplying, setIsReplying] = useState(false)
   const [replyContent, setReplyContent] = useState("")
+  const displayName = comment.nickname || comment.username
+  const parentDisplayName = comment.parent_nickname || comment.parent_username
 
   return (
     <motion.div
@@ -49,16 +53,16 @@ export function CommentItem({ comment, isOwner = false, onEdit, onDelete, onRepl
       className="flex gap-4 p-4 rounded-xl bg-card/50 border border-border/50"
     >
       <Avatar className="w-10 h-10">
-        <AvatarImage src={comment.avatar || "/placeholder.svg"} alt={comment.username} />
+        <AvatarImage src={comment.avatar || "/placeholder.svg"} alt={displayName} />
         <AvatarFallback className="bg-primary/10 text-primary">
-          {comment.username.charAt(0).toUpperCase()}
+          {displayName.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-1">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm">{comment.username}</span>
+            <span className="font-semibold text-sm">{displayName}</span>
             <span className="text-xs text-muted-foreground">{timeAgo}</span>
           </div>
 
@@ -100,7 +104,7 @@ export function CommentItem({ comment, isOwner = false, onEdit, onDelete, onRepl
 
         {comment.parent_username && (
           <div className="text-xs text-muted-foreground mb-2">
-            Replying to <span className="font-medium">@{comment.parent_username}</span>
+            Replying to <span className="font-medium">@{parentDisplayName}</span>
           </div>
         )}
 

@@ -54,9 +54,11 @@ class MovieDetailSerializer(serializers.ModelSerializer):
 class CommentSerializer(serializers.ModelSerializer):
     # Hiển thị username thay vì user_id
     username = serializers.CharField(source='user.username', read_only=True)
+    nickname = serializers.CharField(source='user.nickname', read_only=True, allow_null=True)
     movie_title = serializers.CharField(source='movie.title', read_only=True)
     movie_tmdb_id = serializers.IntegerField(source='movie.tmdb_id', read_only=True)
     parent_username = serializers.CharField(source='parent.user.username', read_only=True, default=None)
+    parent_nickname = serializers.CharField(source='parent.user.nickname', read_only=True, allow_null=True, default=None)
     likes_count = serializers.SerializerMethodField()
     dislikes_count = serializers.SerializerMethodField()
     user_reaction = serializers.SerializerMethodField()
@@ -65,8 +67,8 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = (
-            'id', 'username', 'content', 'created_at',
-            'movie_title', 'movie_tmdb_id', 'parent_username',
+            'id', 'username', 'nickname', 'content', 'created_at',
+            'movie_title', 'movie_tmdb_id', 'parent_username', 'parent_nickname',
             'likes_count', 'dislikes_count', 'user_reaction',
             'replies'
         )

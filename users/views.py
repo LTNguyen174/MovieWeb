@@ -3,7 +3,7 @@ from rest_framework.response import Response # <-- Thêm Response
 from rest_framework.permissions import AllowAny, IsAuthenticated # <-- Thêm IsAuthenticated
 from .serializers import RegisterSerializer
 # Thêm các import mới
-from .serializers import UserRatingSerializer, ChangePasswordSerializer, WatchHistorySerializer
+from .serializers import UserRatingSerializer, ChangePasswordSerializer, WatchHistorySerializer, UserProfileSerializer
 from movies.serializers import CommentSerializer # Import từ app 'movies'
 from movies.models import Rating, Comment, WatchHistory # Import model từ app 'movies'
 from .models import User
@@ -92,3 +92,24 @@ class MyHistoryView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         return WatchHistory.objects.filter(user=user).order_by('-last_watched_at')
+
+
+class ProfileView(generics.RetrieveUpdateAPIView):
+    """
+    API: GET/PUT/PATCH /api/auth/profile/
+    Xem và cập nhật thông tin profile người dùng.
+    """
+    serializer_class = UserProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        old_avatar = user.avatar if 'avatar' in self.request.FILES else None
+        # Cho phép partial update cho cả PUT/PATCH
+        instance = serializer.save()
+        # Nếu có upload avatar mới, xóa file cũ khỏi storage
+        if old_avatar and old_avatar.name != instance.avatar.name:
+            old_avatar.delete(save=False)
