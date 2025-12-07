@@ -56,10 +56,14 @@ function getAuthHeadersNoContentType(): HeadersInit {
 
 // Auto refresh token khi access token hết hạn
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  // Nếu body là FormData, không set Content-Type để browser tự set boundary
+  const isFormData = options.body instanceof FormData
+  const headers = isFormData ? getAuthHeadersNoContentType() : getAuthHeaders()
+  
   const response = await fetch(url, {
     ...options,
     headers: {
-      ...getAuthHeaders(),
+      ...headers,
       ...options.headers,
     },
   })
@@ -79,18 +83,24 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
         localStorage.setItem("access_token", data.access)
 
         // Retry request với token mới
+        const newHeaders = isFormData ? getAuthHeadersNoContentType() : getAuthHeaders()
         return fetch(url, {
           ...options,
           headers: {
-            ...getAuthHeaders(),
+            ...newHeaders,
             ...options.headers,
           },
         })
       } else {
-        // Refresh token cũng hết hạn, logout
+        // Refresh token cũng hết hạn, clear tokens nhưng KHÔNG auto redirect
         clearTokens()
-        window.location.href = "/login"
+        // Throw error để component xử lý
+        throw new Error("Session expired. Please login again.")
       }
+    } else {
+      // Không có refresh token, clear và throw error
+      clearTokens()
+      throw new Error("No refresh token. Please login again.")
     }
   }
 
@@ -158,6 +168,7 @@ export interface UserProfile {
   date_of_birth?: string | null
   country?: string | null
   avatar?: string | null
+  date_joined?: string
 }
 
 export interface TMDBSearchResult {
@@ -201,6 +212,40 @@ export const authAPI = {
     return data
   },
 
+  // Google OAuth Login
+  async googleLogin(code: string): Promise<AuthTokens> {
+    const response = await fetch(`${API_BASE_URL}/auth/google/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
+      console.error("Google OAuth backend error:", errorData)
+      throw new Error(`Google login failed: ${errorData.error || errorData.detail || "Unknown error"}`)
+    }
+    const data = await response.json()
+    setTokens(data.access, data.refresh)
+    return data
+  },
+
+  // Get Google OAuth URL
+  getGoogleAuthUrl(): string {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+    console.log("Frontend Google Client ID:", clientId)
+    const redirectUri = `${window.location.origin}/auth/google/callback`
+    console.log("Frontend redirect URI:", redirectUri)
+    const scope = 'email profile'
+    const responseType = 'code'
+    
+    return `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${clientId}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+      `scope=${encodeURIComponent(scope)}&` +
+      `response_type=${responseType}&` +
+      `access_type=offline`
+  },
+
   // Logout - Clear tokens
   logout() {
     clearTokens()
@@ -229,7 +274,7 @@ export const moviesAPI = {
   // GET /api/movies/
   async getMovies(params?: {
     search?: string
-    categories?: number
+    categories?: number | number[]
     release_year?: number
     page?: number
     page_size?: number
@@ -237,14 +282,20 @@ export const moviesAPI = {
   }): Promise<any> {
     const searchParams = new URLSearchParams()
     if (params?.search) searchParams.append("search", params.search)
-    if (params?.categories) searchParams.append("categories", params.categories.toString())
+    if (params?.categories) {
+      if (Array.isArray(params.categories)) {
+        searchParams.append("categories", params.categories.join(','))
+      } else {
+        searchParams.append("categories", params.categories.toString())
+      }
+    }
     if (params?.release_year) searchParams.append("release_year", params.release_year.toString())
     if (params?.page) searchParams.append("page", params.page.toString())
     if (params?.page_size) searchParams.append("page_size", params.page_size.toString())
     if (params?.country) searchParams.append("country", params.country)
 
     const url = `${API_BASE_URL}/movies/?${searchParams.toString()}`
-    const response = await fetch(url)
+    const response = await fetchWithAuth(url)
     if (!response.ok) throw new Error("Failed to fetch movies")
     return response.json()
   },
@@ -273,7 +324,10 @@ export const moviesAPI = {
   async rateMovie(tmdbId: number, stars: number): Promise<{ status: string }> {
     const response = await fetchWithAuth(`${API_BASE_URL}/movies/${tmdbId}/rate/`, {
       method: "POST",
-      body: JSON.stringify({ stars }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ score: stars }),
     })
     if (!response.ok) throw new Error("Failed to rate movie")
     return response.json()
@@ -284,7 +338,17 @@ export const moviesAPI = {
     const response = await fetchWithAuth(`${API_BASE_URL}/movies/${tmdbId}/favorite/`, {
       method: "POST",
     })
-    if (!response.ok) throw new Error("Failed to toggle favorite")
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      console.error("toggleFavorite error:", { status: response.status, errorData })
+      let errorMessage = "Failed to toggle favorite"
+      if (errorData?.error) {
+        errorMessage = errorData.error
+      } else if (errorData?.detail) {
+        errorMessage = errorData.detail
+      }
+      throw new Error(errorMessage)
+    }
     return response.json()
   },
 
@@ -317,13 +381,15 @@ export const moviesAPI = {
   },
 
   async getNewReleases(limit = 10): Promise<Movie[]> {
-    const response = await fetch(`${API_BASE_URL}/movies/new-releases/?limit=${limit}`)
+    const response = await fetch(`${API_BASE_URL}/movies/new_releases/?limit=${limit}`)
     if (!response.ok) throw new Error('Failed to fetch new releases')
     return response.json()
   },
 
   async getTopRated(limit = 10): Promise<Movie[]> {
-    const response = await fetch(`${API_BASE_URL}/movies/top-rated/?limit=${limit}`)
+    const response = await fetch(`${API_BASE_URL}/movies/top_rated/?limit=${limit}`, {
+      cache: 'no-store'
+    })
     if (!response.ok) throw new Error('Failed to fetch top rated movies')
     return response.json()
   },
@@ -500,10 +566,9 @@ export const profileAPI = {
     if (data.country) formData.append("country", data.country)
     if (data.avatarFile) formData.append("avatar", data.avatarFile)
 
-    const response = await fetch(`${API_BASE_URL}/auth/profile/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/auth/profile/`, {
       method: "PATCH",
       body: formData,
-      headers: getAuthHeadersNoContentType(), // để browser tự set multipart boundary
     })
 
     if (!response.ok) {

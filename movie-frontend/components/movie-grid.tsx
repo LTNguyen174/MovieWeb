@@ -10,12 +10,14 @@ interface MovieGridProps {
   title?: string
   searchQuery?: string
   categoryId?: number | null
+  categoryIds?: number[]
   releaseYear?: number | null
+  country?: string | null
   pageSize?: number
   enablePagination?: boolean
 }
 
-export function MovieGrid({ movies: propMovies, title, searchQuery, categoryId, releaseYear, pageSize = 30, enablePagination = false }: MovieGridProps) {
+export function MovieGrid({ movies: propMovies, title, searchQuery, categoryId, categoryIds, releaseYear, country, pageSize = 30, enablePagination = false }: MovieGridProps) {
   const [movies, setMovies] = useState<Movie[]>(propMovies || [])
   const [loading, setLoading] = useState(!propMovies)
   const [error, setError] = useState<string | null>(null)
@@ -28,12 +30,12 @@ export function MovieGrid({ movies: propMovies, title, searchQuery, categoryId, 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [searchQuery, categoryId, releaseYear])
+  }, [searchQuery, categoryId, categoryIds, releaseYear, country])
 
   useEffect(() => {
     // Nếu có movies từ props VÀ không có search/filter, dùng propMovies
     // Nếu có search/filter, luôn fetch từ API
-    const hasFilters = searchQuery || categoryId || releaseYear
+    const hasFilters = searchQuery || categoryId || categoryIds || releaseYear || country
     
     if (propMovies && !hasFilters) {
       setMovies(propMovies)
@@ -49,8 +51,9 @@ export function MovieGrid({ movies: propMovies, title, searchQuery, categoryId, 
         setError(null)
         const data = await moviesAPI.getMovies({
           search: searchQuery,
-          categories: categoryId || undefined,
+          categories: categoryIds || categoryId || undefined,
           release_year: releaseYear || undefined,
+          country: country || undefined,
           page: enablePagination ? page : undefined,
           page_size: enablePagination ? pageSize : undefined,
         })
@@ -83,7 +86,7 @@ export function MovieGrid({ movies: propMovies, title, searchQuery, categoryId, 
     }
 
     fetchMovies()
-  }, [propMovies, searchQuery, categoryId, releaseYear, page, pageSize, enablePagination])
+  }, [propMovies, searchQuery, categoryId, categoryIds, releaseYear, country, page, pageSize, enablePagination])
 
   if (loading) {
     return (
@@ -118,7 +121,7 @@ export function MovieGrid({ movies: propMovies, title, searchQuery, categoryId, 
 
   return (
     <section className="py-8">
-      {title && (
+      {(title || (enablePagination && totalCount)) && (
         <motion.h2
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}

@@ -33,50 +33,73 @@ export default function ProfilePage() {
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null)
   const [pendingAvatar, setPendingAvatar] = useState<File | null>(null)
   const [showAvatarDialog, setShowAvatarDialog] = useState(false)
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, user, isLoading } = useAuth()
   const router = useRouter()
 
   // Protect route
   useEffect(() => {
-    if (!isAuthenticated) {
+    console.log("ProfilePage: useEffect check auth", { isAuthenticated, isLoading })
+    if (!isAuthenticated && !isLoading) {
+      console.log("ProfilePage: redirecting to login - not authenticated")
       router.push("/login")
     }
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, isLoading, router])
 
   // Fetch profile data
   const loadProfileData = async () => {
+    console.log("=== loadProfileData started ===")
     let mounted = true
     setLoading(true)
     setError("")
     try {
       // Load thông tin profile cơ bản
       try {
+        console.log("loadProfileData: fetching profile...")
         const p = await profileAPI.getProfile()
+        console.log("loadProfileData: profile received", p)
         if (mounted) setProfile(p)
-      } catch (e) {
+      } catch (e: any) {
         console.error("Load profile failed", e)
+        // Nếu session expired, redirect về login
+        if (e.message?.includes("Session expired") || e.message?.includes("No refresh token")) {
+          console.log("loadProfileData: session expired, redirecting to login")
+          router.push("/login")
+          return
+        }
       }
 
       // Fetch independently so one failure doesn't block others
       try {
         const fav = await profileAPI.getFavorites()
         if (mounted) setFavorites(Array.isArray(fav) ? fav : [])
-      } catch (e) {
+      } catch (e: any) {
         console.error("Load favorites failed", e)
+        if (e.message?.includes("Session expired") || e.message?.includes("No refresh token")) {
+          router.push("/login")
+          return
+        }
       }
 
       try {
         const com = await profileAPI.getMyComments()
         if (mounted) setComments(Array.isArray(com) ? com : [])
-      } catch (e) {
+      } catch (e: any) {
         console.error("Load comments failed", e)
+        if (e.message?.includes("Session expired") || e.message?.includes("No refresh token")) {
+          router.push("/login")
+          return
+        }
       }
 
       try {
         const his = await profileAPI.getHistory()
         if (mounted) setHistory(Array.isArray(his) ? his : [])
-      } catch (e) {
+      } catch (e: any) {
         console.error("Load history failed", e)
+        if (e.message?.includes("Session expired") || e.message?.includes("No refresh token")) {
+          router.push("/login")
+          return
+        }
       }
     } finally {
       if (mounted) setLoading(false)
@@ -143,8 +166,13 @@ export default function ProfilePage() {
       // dùng URL từ server, bỏ preview tạm
       setPreviewAvatar(null)
       URL.revokeObjectURL(objectUrl)
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to update avatar", e)
+      // Nếu session expired, redirect về login
+      if (e.message?.includes("Session expired") || e.message?.includes("No refresh token")) {
+        router.push("/login")
+        return
+      }
       alert("Không thể cập nhật ảnh đại diện.")
       // revert preview
       setPreviewAvatar(null)
@@ -171,7 +199,7 @@ export default function ProfilePage() {
               nickname: profile?.nickname || user?.nickname || null,
               email: profile?.email || "",
               avatar: previewAvatar || profile?.avatar || undefined,
-              joinedAt: profile ? profile.date_of_birth || new Date().toISOString() : new Date().toISOString(),
+              date_joined: profile?.date_joined || user?.date_joined || new Date().toISOString(),
             }}
             onEditProfile={() => router.push("/profile/edit")}
             onChangeAvatar={handleAvatarChange}

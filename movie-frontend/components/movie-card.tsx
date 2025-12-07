@@ -1,9 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { motion } from "framer-motion"
 import Link from "next/link"
-import { Play, Star, Plus } from "lucide-react"
+import { Play, Star, Plus, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { moviesAPI } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
 
 interface Movie {
   tmdb_id: number
@@ -12,6 +15,7 @@ interface Movie {
   release_year: number
   categories: { id: number; name: string }[]
   average_rating?: number
+  is_favorite?: boolean
 }
 
 interface MovieCardProps {
@@ -20,6 +24,33 @@ interface MovieCardProps {
 }
 
 export function MovieCard({ movie, index = 0 }: MovieCardProps) {
+  const { user } = useAuth()
+  const [isLiked, setIsLiked] = useState(movie.is_favorite || false)
+
+  const handleToggleFavorite = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (!user) {
+      alert("Vui lòng đăng nhập để thêm vào yêu thích")
+      return
+    }
+
+    // Optimistic update - hiển thị tim ngay lập tức
+    const newIsLiked = !isLiked
+    setIsLiked(newIsLiked)
+
+    try {
+      await moviesAPI.toggleFavorite(movie.tmdb_id)
+      // Giữ optimistic update state
+    } catch (err) {
+      console.error("Failed to toggle favorite:", err)
+      // Rollback nếu lỗi
+      setIsLiked(!newIsLiked)
+      alert("Không thể thêm vào yêu thích")
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -54,6 +85,11 @@ export function MovieCard({ movie, index = 0 }: MovieCardProps) {
             whileHover={{ opacity: 1, y: 0 }}
             className="absolute inset-0 flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-all duration-300"
           >
+            <div className="flex items-center gap-1 mb-3">
+              <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+              <span>{movie.average_rating ? movie.average_rating.toFixed(1) : "N/A"}</span>
+            </div>
+            
             <div className="flex gap-2 mb-3">
               <Button
                 size="sm"
@@ -67,8 +103,13 @@ export function MovieCard({ movie, index = 0 }: MovieCardProps) {
                 <Play className="w-4 h-4 fill-current" />
                 Play
               </Button>
-              <Button size="sm" variant="secondary" className="rounded-full">
-                <Plus className="w-4 h-4" />
+              <Button 
+                size="sm" 
+                variant="secondary" 
+                className="rounded-full"
+                onClick={handleToggleFavorite}
+              >
+                <Heart className={`w-4 h-4 ${isLiked ? "fill-primary text-primary" : ""}`} />
               </Button>
             </div>
             <div className="flex flex-wrap gap-1">

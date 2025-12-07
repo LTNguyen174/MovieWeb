@@ -14,9 +14,11 @@ import { CommentInputBox } from "@/components/comment-input-box"
 import { CommentItem } from "@/components/comment-item"
 import { RecommendationCarousel } from "@/components/recommendation-carousel"
 import { moviesAPI, commentsAPI, type MovieDetail, type Comment } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function MovieDetailPage() {
   const params = useParams()
+  const { user } = useAuth()
   const movieId = Number(params.id)
   const [userRating, setUserRating] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
@@ -184,11 +186,17 @@ export default function MovieDetailPage() {
                 variant="outline"
                 className="rounded-full bg-transparent"
                 onClick={async () => {
+                  // Optimistic update - hiển thị tim ngay lập tức
+                  const newIsLiked = !isLiked
+                  setIsLiked(newIsLiked)
+                  
                   try {
-                    const result = await moviesAPI.toggleFavorite(movieId)
-                    setIsLiked(result.is_favorite)
-                  } catch (err) {
+                    await moviesAPI.toggleFavorite(movieId)
+                    // Giữ optimistic update state
+                  } catch (err: any) {
                     console.error("Failed to toggle favorite:", err)
+                    // Rollback nếu lỗi
+                    setIsLiked(!newIsLiked)
                     alert("Không thể cập nhật yêu thích. Vui lòng đăng nhập.")
                   }
                 }}
@@ -253,12 +261,43 @@ export default function MovieDetailPage() {
                     movie_tmdb_id: comment.movie_tmdb_id ?? movieId,
                   }}
                   index={index}
+                  isOwner={comment.username === user?.username}
+                  onEdit={async (id) => {
+                    const newContent = prompt("Edit comment:")
+                    if (newContent && newContent.trim()) {
+                      try {
+                        await commentsAPI.updateComment(id, newContent.trim())
+                        const refreshed = await moviesAPI.getComments(movieId)
+                        setComments(refreshed)
+                      } catch (err) {
+                        alert("Không thể sửa bình luận.")
+                      }
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    if (confirm("Bạn có chắc muốn xóa bình luận này?")) {
+                      try {
+                        await commentsAPI.deleteComment(id)
+                        const refreshed = await moviesAPI.getComments(movieId)
+                        setComments(refreshed)
+                      } catch (err) {
+                        alert("Không thể xóa bình luận.")
+                      }
+                    }
+                  }}
                   onReply={async (parentId, content) => {
                     try {
+                      console.log(`=== REPLY START ===`)
+                      console.log(`Reply to parent: ${parentId}, content: ${content}`)
                       await commentsAPI.createComment(movieId, content, parentId)
+                      console.log(`Reply created, now refreshing comments...`)
+                      // Chỉ refresh comments để hiển thị reply mới
                       const refreshed = await moviesAPI.getComments(movieId)
+                      console.log(`Comments refreshed, count: ${refreshed.length}`)
                       setComments(refreshed)
+                      console.log(`=== REPLY END ===`)
                     } catch (err) {
+                      console.error(`Reply error:`, err)
                       alert("Không thể trả lời bình luận. Vui lòng đăng nhập.")
                     }
                   }}

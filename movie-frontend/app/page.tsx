@@ -6,6 +6,7 @@ import { Footer } from "@/components/footer"
 import { HeroBanner } from "@/components/hero-banner"
 import { SearchBar } from "@/components/search-bar"
 import { CategorySelect, YearSelect } from "@/components/category-select"
+import { CountrySelect } from "@/components/country-select"
 import { MovieGrid } from "@/components/movie-grid"
 import { RecommendationCarousel } from "@/components/recommendation-carousel"
 import { moviesAPI, type Movie } from "@/lib/api"
@@ -14,6 +15,7 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
   const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
   const [trendingDay, setTrendingDay] = useState<Movie[]>([])
   const [trendingWeek, setTrendingWeek] = useState<Movie[]>([])
   const [newReleases, setNewReleases] = useState<Movie[]>([])
@@ -115,11 +117,12 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center gap-4 mt-6 justify-center">
             <CategorySelect selectedCategory={selectedCategory} onSelect={setSelectedCategory} />
             <YearSelect selectedYear={selectedYear} onSelect={setSelectedYear} />
+            <CountrySelect selectedCountry={selectedCountry} onSelect={setSelectedCountry} />
           </div>
         </section>
 
         {/* Featured Carousels - Chỉ hiển thị khi không search/filter */}
-        {!searchQuery && !selectedCategory && !selectedYear && (
+        {!searchQuery && !selectedCategory && !selectedYear && !selectedCountry && (
           <>
             <RecommendationCarousel title="Trending Today" movies={trendingDay} />
             <RecommendationCarousel title="Trending This Week" movies={trendingWeek} />
@@ -127,7 +130,7 @@ export default function HomePage() {
         )}
 
         {/* Movie Grid - Chỉ hiển thị khi có search hoặc filter */}
-        {(searchQuery || selectedCategory || selectedYear) && (
+        {(searchQuery || selectedCategory || selectedYear || selectedCountry) && (
           <MovieGrid 
             title={
               searchQuery 
@@ -139,11 +142,12 @@ export default function HomePage() {
             searchQuery={searchQuery || undefined}
             categoryId={selectedCategory}
             releaseYear={selectedYear}
+            country={selectedCountry}
           />
         )}
 
         {/* More Carousels - Chỉ hiển thị khi không search/filter */}
-        {!searchQuery && !selectedCategory && !selectedYear && (
+        {!searchQuery && !selectedCategory && !selectedYear && !selectedCountry && (
           <>
             <RecommendationCarousel title="New Releases" movies={newReleases} />
             <RecommendationCarousel title="Top Rated" movies={topRated} />

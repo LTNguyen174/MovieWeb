@@ -14,6 +14,7 @@ import { CommentInputBox } from "@/components/comment-input-box"
 import { CommentItem } from "@/components/comment-item"
 import { RecommendationCarousel } from "@/components/recommendation-carousel"
 import { moviesAPI, commentsAPI, type MovieDetail, type Comment } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
 
 // Hàm convert YouTube URL sang embed URL
 function getYouTubeEmbedUrl(url: string | null | undefined): string | null {
@@ -42,6 +43,7 @@ function getYouTubeEmbedUrl(url: string | null | undefined): string | null {
 export default function WatchPage() {
   const params = useParams()
   const router = useRouter()
+  const { user } = useAuth()
   const movieId = Number(params.id)
   const [userRating, setUserRating] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
@@ -253,12 +255,28 @@ export default function WatchPage() {
                 variant="outline"
                 className="rounded-full bg-transparent"
                 onClick={async () => {
+                  // Check if user has rated 4+ stars
+                  if (!userRating || userRating < 4) {
+                    alert("Bạn phải đánh giá phim 4 sao trở lên mới có thể thêm vào yêu thích!")
+                    return
+                  }
+                  
+                  // Optimistic update - hiển thị tim ngay lập tức
+                  const newIsLiked = !isLiked
+                  setIsLiked(newIsLiked)
+                  
                   try {
-                    const result = await moviesAPI.toggleFavorite(movieId)
-                    setIsLiked(result.is_favorite)
-                  } catch (err) {
+                    await moviesAPI.toggleFavorite(movieId)
+                    // Giữ optimistic update state
+                  } catch (err: any) {
                     console.error("Failed to toggle favorite:", err)
-                    alert("Không thể cập nhật yêu thích. Vui lòng đăng nhập.")
+                    // Rollback nếu lỗi
+                    setIsLiked(!newIsLiked)
+                    if (err.message?.includes("4 stars or higher")) {
+                      alert("Bạn phải đánh giá phim 4 sao trở lên mới có thể thêm vào yêu thích!")
+                    } else {
+                      alert("Không thể cập nhật yêu thích. Vui lòng đăng nhập.")
+                    }
                   }
                 }}
               >
@@ -317,6 +335,52 @@ export default function WatchPage() {
                   key={comment.id ?? `${comment.username}-${comment.created_at}-${index}`}
                   comment={comment}
                   index={index}
+                  isOwner={comment.username === user?.username}
+                  onEdit={async (id) => {
+                    const newContent = prompt("Edit comment:")
+                    if (newContent && newContent.trim()) {
+                      try {
+                        await commentsAPI.updateComment(id, newContent.trim())
+                        const refreshed = await moviesAPI.getComments(movieId)
+                        setComments(refreshed)
+                      } catch (err) {
+                        alert("Không thể sửa bình luận.")
+                      }
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    if (confirm("Bạn có chắc muốn xóa bình luận này?")) {
+                      try {
+                        await commentsAPI.deleteComment(id)
+                        const refreshed = await moviesAPI.getComments(movieId)
+                        setComments(refreshed)
+                      } catch (err) {
+                        alert("Không thể xóa bình luận.")
+                      }
+                    }
+                  }}
+                  onReply={async (parentId, content) => {
+                    try {
+                      await commentsAPI.createComment(movieId, content, parentId)
+                      const refreshed = await moviesAPI.getComments(movieId)
+                      setComments(refreshed)
+                    } catch (err) {
+                      alert("Không thể trả lời bình luận. Vui lòng đăng nhập.")
+                    }
+                  }}
+                  onReact={async (id, reaction) => {
+                    try {
+                      if (reaction === null) {
+                        const updated = await commentsAPI.removeReaction(id)
+                        setComments((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+                      } else {
+                        const updated = await commentsAPI.react(id, reaction)
+                        setComments((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+                      }
+                    } catch (err) {
+                      alert("Không thể tương tác bình luận. Vui lòng đăng nhập.")
+                    }
+                  }}
                 />
               ))
             )}

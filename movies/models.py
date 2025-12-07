@@ -208,6 +208,27 @@ class WatchHistory(models.Model):
         return f"{self.user.username} watched {self.movie.title} at {self.last_watched_at}"
 
 
+class Favorite(models.Model):
+    """Lưu trữ danh sách phim yêu thích của người dùng (tách biệt với rating)"""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE,
+        related_name='favorites'
+    )
+    movie = models.ForeignKey(
+        Movie, 
+        on_delete=models.CASCADE, 
+        related_name='favorited_by'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'movie')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} favorited {self.movie.title}"
+
 # === NEW: Comment Reaction (Like/Dislike) ===
 class CommentReaction(models.Model):
     LIKE = 'like'

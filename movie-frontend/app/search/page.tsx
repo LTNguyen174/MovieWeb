@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { MovieCard } from "@/components/movie-card"
+import { MovieGrid } from "@/components/movie-grid"
 import { Tag } from "@/components/tag"
 import { moviesAPI, type Movie, type Category } from "@/lib/api"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -36,12 +37,25 @@ export default function SearchPage() {
         const categoriesData = await moviesAPI.getCategories()
         setCategories(Array.isArray(categoriesData) ? categoriesData : [])
 
-        // Load countries from debug endpoint
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"}/movies/debug/`)
-        const debugData = await response.json()
-        setCountries(debugData.countries || [])
-        
-        console.log('Loaded countries from database:', debugData.countries)
+        // Load countries from static list
+        const staticCountries = [
+          { id: 1, name: "United States" },
+          { id: 2, name: "United Kingdom" },
+          { id: 3, name: "France" },
+          { id: 4, name: "Germany" },
+          { id: 5, name: "Italy" },
+          { id: 6, name: "Spain" },
+          { id: 7, name: "Japan" },
+          { id: 8, name: "South Korea" },
+          { id: 9, name: "China" },
+          { id: 10, name: "India" },
+          { id: 11, name: "Canada" },
+          { id: 12, name: "Australia" },
+          { id: 13, name: "Brazil" },
+          { id: 14, name: "Mexico" },
+          { id: 15, name: "Russia" },
+        ]
+        setCountries(staticCountries)
       } catch (err) {
         console.error("Failed to load data:", err)
         setCategories([])
@@ -245,24 +259,6 @@ export default function SearchPage() {
               <X className="w-4 h-4" />
               Xóa bộ lọc
             </Button>
-            <Button
-              variant="secondary"
-              onClick={async () => {
-                try {
-                  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"}/movies/debug/`)
-                  const data = await response.json()
-                  console.log('Debug data:', data)
-                  alert(`Debug info:\nTotal movies: ${data.total_movies}\nCountries: ${data.countries.length}\nCategories: ${data.categories.length}\nCheck console for details`)
-                } catch (err) {
-                  console.error('Debug failed:', err)
-                  alert('Debug failed - check console')
-                }
-              }}
-              className="rounded-full gap-2"
-            >
-              <Filter className="w-4 h-4" />
-              Debug Data
-            </Button>
           </div>
         </motion.div>
 
@@ -315,11 +311,15 @@ export default function SearchPage() {
                 <div className="text-muted-foreground">Thử thay đổi điều kiện tìm kiếm</div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
-                {movies.map((movie, index) => (
-                  <MovieCard key={movie.tmdb_id} movie={movie} index={index} />
-                ))}
-              </div>
+              <MovieGrid 
+                title={searchQuery ? `Kết quả tìm kiếm: "${searchQuery}"` : undefined}
+                searchQuery={searchQuery || undefined}
+                categoryIds={selectedCategories.length > 0 ? selectedCategories : undefined}
+                releaseYear={selectedYear ? parseInt(selectedYear) : undefined}
+                country={selectedCountry || undefined}
+                enablePagination={true}
+                pageSize={30}
+              />
             )}
           </motion.div>
         )}

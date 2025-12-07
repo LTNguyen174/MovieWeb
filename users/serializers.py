@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import User
 # Thêm import cho các model và serializer từ app 'movies'
-from movies.models import Rating, Comment
+from movies.models import Rating, Comment, Favorite
 from movies.serializers import MovieSerializer, CommentSerializer
 from movies.models import WatchHistory
 
@@ -34,6 +34,18 @@ class UserRatingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rating
         fields = ('movie', 'stars', 'created_at') # Các trường bạn muốn hiển thị
+
+
+class FavoriteSerializer(serializers.ModelSerializer):
+    """
+    Serializer cho Danh sách Favorites của user.
+    Trả về Movie objects từ Favorite model mà không yêu cầu Rating.
+    """
+    movie = MovieSerializer(read_only=True)
+
+    class Meta:
+        model = Favorite
+        fields = ('movie', 'created_at')
 
 class ChangePasswordSerializer(serializers.Serializer):
     """
@@ -70,8 +82,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("username", "email", "nickname", "date_of_birth", "country", "avatar")
-        read_only_fields = ("email",)
+        fields = ("username", "email", "nickname", "date_of_birth", "country", "avatar", "date_joined")
+        read_only_fields = ("username", "email", "date_joined")
 
     def to_representation(self, instance):
         """
@@ -82,4 +94,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
         avatar_path = data.get("avatar")
         if avatar_path and request is not None:
             data["avatar"] = request.build_absolute_uri(avatar_path)
+        elif not avatar_path:
+            data["avatar"] = None
         return data

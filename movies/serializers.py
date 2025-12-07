@@ -46,9 +46,9 @@ class MovieDetailSerializer(serializers.ModelSerializer):
     def get_is_favorite(self, obj):
         request = self.context.get('request')
         if request and request.user and request.user.is_authenticated:
-            # A movie is considered favorite if user has rated it 4 or 5 stars
-            r = obj.ratings.filter(user=request.user).first()
-            return r.stars >= 4 if r else False
+            # Check if user has marked this movie as favorite
+            from .models import Favorite
+            return Favorite.objects.filter(user=request.user, movie=obj).exists()
         return False
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -108,6 +108,29 @@ class CommentCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = ('movie_tmdb_id', 'content', 'parent_id')
+
+    def create(self, validated_data):
+        movie_tmdb_id = validated_data.pop('movie_tmdb_id')
+        parent_id = validated_data.pop('parent_id', None)
+        
+        try:
+            movie = Movie.objects.get(tmdb_id=movie_tmdb_id)
+        except Movie.DoesNotExist:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError("Movie with this TMDB ID does not exist")
+        
+        comment = Comment.objects.create(
+            movie=movie,
+            parent_id=parent_id,
+            **validated_data
+        )
+        # Return data using CommentSerializer for full response
+        return CommentSerializer(comment).data
+
+class CommentUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = ('content',)
 class EpisodeSerializer(serializers.ModelSerializer):
     """
     Serializer cho Admin quản lý tập phim.

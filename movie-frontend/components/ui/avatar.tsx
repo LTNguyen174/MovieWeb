@@ -23,12 +23,16 @@ function Avatar({
 
 function AvatarImage({
   className,
+  onLoadingStatusChange,
   ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Image>) {
+}: React.ComponentProps<typeof AvatarPrimitive.Image> & {
+  onLoadingStatusChange?: (status: "idle" | "loading" | "loaded" | "error") => void
+}) {
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
       className={cn('aspect-square size-full', className)}
+      onLoadingStatusChange={onLoadingStatusChange}
       {...props}
     />
   )

@@ -30,8 +30,13 @@ export default function EditProfilePage() {
       try {
         const p = await profileAPI.getProfile()
         setProfile(p)
-      } catch (e) {
+      } catch (e: any) {
         console.error("Failed to load profile", e)
+        // Nếu session expired, redirect về login
+        if (e.message?.includes("Session expired") || e.message?.includes("No refresh token")) {
+          router.push("/login")
+          return
+        }
       }
     })()
   }, [isAuthenticated, router])
@@ -66,7 +71,7 @@ export default function EditProfilePage() {
             nickname: profile?.nickname || user?.nickname || null,
             email: profile?.email || "",
             avatar: previewAvatar || profile?.avatar || undefined,
-            joinedAt: profile ? profile.date_of_birth || new Date().toISOString() : new Date().toISOString(),
+            date_joined: profile?.date_joined || user?.date_joined || new Date().toISOString(),
           }}
           onEditProfile={() => {}}
           onChangeAvatar={handleAvatarChange}
@@ -103,6 +108,11 @@ export default function EditProfilePage() {
                 router.push("/profile")
               } catch (err: any) {
                 console.error("Failed to update profile", err)
+                // Nếu session expired, redirect về login
+                if (err.message?.includes("Session expired") || err.message?.includes("No refresh token")) {
+                  router.push("/login")
+                  return
+                }
                 const errorMessage = err?.message || "Cập nhật thông tin thất bại."
                 alert(errorMessage)
               } finally {
@@ -177,6 +187,11 @@ export default function EditProfilePage() {
                     URL.revokeObjectURL(objectUrl)
                   } catch (e: any) {
                     console.error("Failed to update avatar", e)
+                    // Nếu session expired, redirect về login
+                    if (e.message?.includes("Session expired") || e.message?.includes("No refresh token")) {
+                      router.push("/login")
+                      return
+                    }
                     const errorMessage = e?.message || "Không thể cập nhật ảnh đại diện."
                     alert(errorMessage)
                     setPreviewAvatar(null)
