@@ -3,10 +3,11 @@
 import { useState } from "react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
-import { Search, Menu, X, User, Film, Home, Grid, LogIn, LogOut, Filter } from "lucide-react"
+import { Search, Menu, X, User, Film, Home, Grid, LogIn, LogOut, Filter, BarChart3, Tag, Globe, Users, ChevronDown, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -20,9 +21,27 @@ export function Navbar() {
   }
 
   const navLinks = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/categories", label: "Categories", icon: Grid },
-    { href: "/search", label: "Advanced Search", icon: Filter },
+    ...(isAuthenticated && !user?.isAdmin ? [
+      { href: "/", label: "Home", icon: Home },
+      { href: "/categories", label: "Categories", icon: Grid },
+      { href: "/search", label: "Advanced Search", icon: Filter }
+    ] : []),
+    ...(isAuthenticated && user?.isAdmin ? [
+      { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+      { 
+        href: "#", 
+        label: "Management", 
+        icon: Film,
+        dropdown: [
+          { href: "/admin/movies", label: "Movies Management", icon: Film },
+          { href: "/admin/categories", label: "Categories Management", icon: Tag },
+          { href: "/admin/actors", label: "Actors Management", icon: User },
+          { href: "/admin/countries", label: "Countries Management", icon: Globe },
+          { href: "/admin/users", label: "Users Management", icon: Users },
+          { href: "/admin/comments", label: "Comments Management", icon: MessageSquare }
+        ]
+      }
+    ] : []),
     { href: "/profile", label: "Profile", icon: User },
   ]
 
@@ -52,13 +71,38 @@ export function Navbar() {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-muted-foreground hover:text-foreground transition-colors font-medium"
-              >
-                {link.label}
-              </Link>
+              link.dropdown ? (
+                <div key={link.href} className="relative group">
+                  <Button variant="ghost" className="text-muted-foreground hover:text-foreground transition-colors font-medium gap-1">
+                    <link.icon className="w-4 h-4" />
+                    {link.label}
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                  <div className="absolute top-full left-0 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                    <div className="grid grid-cols-3 gap-4 bg-gray-800 border border-gray-700 rounded-lg p-4 shadow-lg min-w-[600px]">
+                      {link.dropdown.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className="flex items-center gap-2 px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-700 rounded transition-colors whitespace-nowrap justify-center"
+                        >
+                          <item.icon className="w-4 h-4 flex-shrink-0" />
+                          <span className="text-sm">{item.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
+                >
+                  {link.icon && <link.icon className="w-4 h-4" />}
+                  {link.label}
+                </Link>
+              )
             ))}
           </div>
 

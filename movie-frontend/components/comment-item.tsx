@@ -30,6 +30,7 @@ interface Comment {
 interface CommentItemProps {
   comment: Comment
   isOwner?: boolean
+  currentUsername?: string | null
   onEdit?: (id: number) => void
   onDelete?: (id: number) => void
   onReply?: (parentId: number, content: string) => Promise<void> | void
@@ -38,12 +39,12 @@ interface CommentItemProps {
   showReplies?: boolean
 }
 
-export function CommentItem({ comment, isOwner = false, onEdit, onDelete, onReply, onReact, index = 0, showReplies = true }: CommentItemProps) {
+export function CommentItem({ comment, isOwner = false, currentUsername = null, onEdit, onDelete, onReply, onReact, index = 0, showReplies = true }: CommentItemProps) {
   const timeAgo = formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })
   const [isReplying, setIsReplying] = useState(false)
   const [replyContent, setReplyContent] = useState("")
-  const displayName = comment.nickname || comment.username
-  const parentDisplayName = comment.parent_nickname || comment.parent_username
+  const displayName = comment.nickname || comment.username || "Unknown User"
+  const parentDisplayName = comment.parent_nickname || comment.parent_username || "Unknown"
 
   return (
     <motion.div
@@ -55,7 +56,7 @@ export function CommentItem({ comment, isOwner = false, onEdit, onDelete, onRepl
       <Avatar className="w-10 h-10">
         <AvatarImage src={comment.avatar || "/placeholder.svg"} alt={displayName} />
         <AvatarFallback className="bg-primary/10 text-primary">
-          {displayName.charAt(0).toUpperCase()}
+          {displayName?.charAt(0)?.toUpperCase() || "U"}
         </AvatarFallback>
       </Avatar>
 
@@ -169,6 +170,10 @@ export function CommentItem({ comment, isOwner = false, onEdit, onDelete, onRepl
               <CommentItem key={rep.id ?? `${rep.username}-${rep.created_at}-${i}`}
                 comment={rep}
                 index={i}
+                currentUsername={currentUsername}
+                isOwner={rep.username === currentUsername}
+                onEdit={onEdit}
+                onDelete={onDelete}
                 onReply={onReply}
                 onReact={onReact}
                 showReplies={showReplies}

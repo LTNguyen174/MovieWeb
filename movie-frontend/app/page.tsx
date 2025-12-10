@@ -143,6 +143,9 @@ export default function HomePage() {
             categoryId={selectedCategory}
             releaseYear={selectedYear}
             country={selectedCountry}
+            // Enable pagination for search/filter results to match advanced search behavior
+            enablePagination={true}
+            pageSize={24}
           />
         )}
 

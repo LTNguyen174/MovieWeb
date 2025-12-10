@@ -71,8 +71,8 @@ export function MovieCard({ movie, index = 0 }: MovieCardProps) {
           {/* Gradient Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-          {/* Rating Badge */}
-          {movie.average_rating && (
+          {/* Rating Badge: only show when average_rating is present */}
+          {movie.average_rating != null && (
             <div className="absolute top-3 right-3 flex items-center gap-1 bg-background/80 backdrop-blur-sm px-2 py-1 rounded-full">
               <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
               <span className="text-xs font-medium">{movie.average_rating.toFixed(1)}</span>
@@ -85,10 +85,12 @@ export function MovieCard({ movie, index = 0 }: MovieCardProps) {
             whileHover={{ opacity: 1, y: 0 }}
             className="absolute inset-0 flex flex-col justify-end p-4 opacity-0 group-hover:opacity-100 transition-all duration-300"
           >
-            <div className="flex items-center gap-1 mb-3">
-              <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-              <span>{movie.average_rating ? movie.average_rating.toFixed(1) : "N/A"}</span>
-            </div>
+            {movie.average_rating != null && (
+              <div className="flex items-center gap-1 mb-3">
+                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                <span>{movie.average_rating.toFixed(1)}</span>
+              </div>
+            )}
             
             <div className="flex gap-2 mb-3">
               <Button

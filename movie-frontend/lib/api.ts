@@ -125,11 +125,13 @@ export interface Movie {
   categories: Category[]
   description?: string
   country?: string
+  average_rating?: number | null
+  is_favorite?: boolean
 }
 
 export interface MovieDetail extends Movie {
   description: string
-  average_rating: number
+  average_rating?: number | null
   user_rating?: number | null
   is_favorite?: boolean
   trailer_url?: string | null
@@ -155,10 +157,31 @@ export interface UserRating {
 }
 
 export interface AdminStats {
-  user_count: number
-  movie_count: number
-  comment_count: number
-  total_views: number
+  total_movies: number
+  total_users: number
+  total_ratings: number
+  today_comments: number
+  daily_comments: Array<{
+    date: string
+    count: number
+  }>
+  daily_movies: Array<{
+    date: string
+    count: number
+  }>
+  daily_users: Array<{
+    date: string
+    count: number
+  }>
+  daily_ratings: Array<{
+    date: string
+    count: number
+  }>
+  top_viewed_movies: Array<{
+    title: string
+    views: number
+    poster: string
+  }>
 }
 
 export interface UserProfile {
@@ -279,6 +302,7 @@ export const moviesAPI = {
     page?: number
     page_size?: number
     country?: string
+    tmdb_ids?: string | number[]
   }): Promise<any> {
     const searchParams = new URLSearchParams()
     if (params?.search) searchParams.append("search", params.search)
@@ -293,6 +317,13 @@ export const moviesAPI = {
     if (params?.page) searchParams.append("page", params.page.toString())
     if (params?.page_size) searchParams.append("page_size", params.page_size.toString())
     if (params?.country) searchParams.append("country", params.country)
+    if (params?.tmdb_ids) {
+      if (Array.isArray(params.tmdb_ids)) {
+        searchParams.append("tmdb_ids", params.tmdb_ids.join(','))
+      } else {
+        searchParams.append("tmdb_ids", String(params.tmdb_ids))
+      }
+    }
 
     const url = `${API_BASE_URL}/movies/?${searchParams.toString()}`
     const response = await fetchWithAuth(url)
@@ -369,24 +400,28 @@ export const moviesAPI = {
   },
 
   async getTrending(window: 'day' | 'week' = 'day', limit = 10): Promise<Movie[]> {
+    // Public endpoint - use regular fetch (no auth required)
     const response = await fetch(`${API_BASE_URL}/movies/trending/?window=${window}&limit=${limit}`)
     if (!response.ok) throw new Error('Failed to fetch trending movies')
     return response.json()
   },
 
   async getPopular(limit = 10): Promise<Movie[]> {
+    // Public endpoint - use regular fetch (no auth required)
     const response = await fetch(`${API_BASE_URL}/movies/popular/?limit=${limit}`)
     if (!response.ok) throw new Error('Failed to fetch popular movies')
     return response.json()
   },
 
   async getNewReleases(limit = 10): Promise<Movie[]> {
+    // Public endpoint - use regular fetch (no auth required)
     const response = await fetch(`${API_BASE_URL}/movies/new_releases/?limit=${limit}`)
     if (!response.ok) throw new Error('Failed to fetch new releases')
     return response.json()
   },
 
   async getTopRated(limit = 10): Promise<Movie[]> {
+    // Public endpoint - use regular fetch (no auth required)
     const response = await fetch(`${API_BASE_URL}/movies/top_rated/?limit=${limit}`, {
       cache: 'no-store'
     })

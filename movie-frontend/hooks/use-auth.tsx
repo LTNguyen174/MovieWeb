@@ -62,13 +62,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({
           username: username,
           nickname: null, // Will be loaded from profile
-          isAdmin: payload.is_staff || false,
+          isAdmin: Boolean(payload.is_staff), // Ensure isAdmin is always boolean
         })
         
         // Load profile to get nickname (async, không block)
         profileAPI.getProfile().then(profile => {
           console.log("useAuth: profile loaded", profile.nickname)
-          setUser(prev => prev ? { ...prev, nickname: profile.nickname, date_joined: profile.date_joined } : null)
+          setUser(prev => prev ? ({
+            ...prev,
+            username: profile.username,
+            nickname: profile.nickname,
+            date_joined: profile.date_joined,
+            isAdmin: Boolean(prev.isAdmin), // Ensure isAdmin is always boolean
+          }) : null)
         }).catch((e) => {
           console.error("useAuth: profile load failed", e)
           // Ignore profile load errors, user still logged in

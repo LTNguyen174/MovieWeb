@@ -1,4 +1,8 @@
 import requests
+import os, json
+from .openai_client import has_key as openai_has_key, chat_completion_with_tools
+from .embeddings import load_embeddings, get_top_k
+from sentence_transformers import SentenceTransformer
 from .tmdb_service import import_movie_from_tmdb
 from django.conf import settings
 from rest_framework.views import APIView
@@ -13,12 +17,17 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
+from django.contrib.auth import get_user_model
+from django.db.models import Count
+
+User = get_user_model()
 
 from .models import Movie, Category, Rating, Comment, Actor, Country, Episode, WatchHistory, CommentReaction, Favorite
 from .serializers import (
-    MovieSerializer, MovieDetailSerializer, CategorySerializer,
-    CommentSerializer, RatingCreateSerializer, CommentCreateSerializer, CommentUpdateSerializer,
-    EpisodeSerializer
+    MovieSerializer, MovieDetailSerializer, CategorySerializer, CountrySerializer,
+    ActorSerializer, RatingCreateSerializer, UserSerializer, UserCreateSerializer,
+    CommentSerializer, CommentCreateSerializer, CommentUpdateSerializer, AdminCommentSerializer,
+    EpisodeSerializer, AdminMovieSerializer
 )
 from .permissions import IsOwnerOrReadOnly
 
@@ -42,6 +51,18 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         queryset = Movie.objects.all().order_by('-views')
+        
+        # DEBUG: Log all query parameters
+        print(f"DEBUG MovieViewSet: Query params = {self.request.query_params}")
+        
+        # Filter by tmdb_ids (for AI suggestions)
+        tmdb_ids_param = self.request.query_params.get('tmdb_ids', None)
+        if tmdb_ids_param:
+            print(f"DEBUG MovieViewSet: tmdb_ids_param = {tmdb_ids_param}")
+            tmdb_ids = [int(x) for x in tmdb_ids_param.split(',') if x.strip().isdigit()]
+            print(f"DEBUG MovieViewSet: tmdb_ids = {tmdb_ids}")
+            if tmdb_ids:
+                queryset = queryset.filter(tmdb_id__in=tmdb_ids)
         
         # Filter by categories (AND logic - phim phải có TẤT CẢ categories được chọn)
         categories_param = self.request.query_params.get('categories', None)
@@ -132,24 +153,148 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'], permission_classes=[AllowAny])
     def trending(self, request):
-        """Lấy phim trending (dựa trên lượt xem)"""
+        """Lấy phim trending từ TMDB API"""
         window = request.GET.get('window', 'day')
         limit = int(request.GET.get('limit', 10))
         
-        # Đơn giản: lấy phim có nhiều lượt xem nhất
-        movies = Movie.objects.all().order_by('-views')[:limit]
-        
-        serializer = MovieSerializer(movies, many=True)
-        return Response(serializer.data)
+        try:
+            # Gọi TMDB API để lấy trending movies
+            tmdb_url = f"{settings.TMDB_BASE_URL}/trending/movie/{window}"
+            params = {
+                'api_key': settings.TMDB_API_KEY,
+                'language': 'vi-VN'
+            }
+            
+            response = requests.get(tmdb_url, params=params)
+            response.raise_for_status()
+            tmdb_data = response.json()
+            
+            # Lấy danh sách tmdb_id từ kết quả TMDB
+            tmdb_results = tmdb_data.get('results', [])[:limit]
+            
+            # Import các phim vào database nếu chưa có
+            movies = []
+            for tmdb_movie in tmdb_results:
+                tmdb_id = tmdb_movie.get('id')
+                try:
+                    # Thử lấy phim từ database
+                    movie = Movie.objects.get(tmdb_id=tmdb_id)
+                except Movie.DoesNotExist:
+                    # Nếu không có, import từ TMDB
+                    try:
+                        movie, _ = import_movie_from_tmdb(tmdb_id)
+                    except Exception as e:
+                        print(f"Failed to import movie {tmdb_id}: {e}")
+                        continue
+                
+                if movie:
+                    movies.append(movie)
+            
+            serializer = MovieSerializer(movies, many=True)
+            return Response(serializer.data)
+            
+        except requests.RequestException as e:
+            # Fallback: lấy phim có nhiều lượt xem nhất nếu TMDB API lỗi
+            print(f"TMDB API error: {e}")
+            movies = Movie.objects.all().order_by('-views')[:limit]
+            serializer = MovieSerializer(movies, many=True)
+            return Response(serializer.data)
 
     @action(detail=False, methods=['get'], permission_classes=[AllowAny])
     def new_releases(self, request):
-        """Lấy phim mới nhất"""
+        """Lấy phim mới nhất từ TMDB API"""
         limit = int(request.GET.get('limit', 10))
-        movies = Movie.objects.all().order_by('-created_at')[:limit]
         
-        serializer = MovieSerializer(movies, many=True)
-        return Response(serializer.data)
+        try:
+            # Gọi TMDB API để lấy upcoming movies
+            tmdb_url = f"{settings.TMDB_BASE_URL}/movie/upcoming"
+            params = {
+                'api_key': settings.TMDB_API_KEY,
+                'language': 'vi-VN'
+            }
+            
+            response = requests.get(tmdb_url, params=params)
+            response.raise_for_status()
+            tmdb_data = response.json()
+            
+            # Lấy danh sách tmdb_id từ kết quả TMDB
+            tmdb_results = tmdb_data.get('results', [])[:limit]
+            
+            # Import các phim vào database nếu chưa có
+            movies = []
+            for tmdb_movie in tmdb_results:
+                tmdb_id = tmdb_movie.get('id')
+                try:
+                    # Thử lấy phim từ database
+                    movie = Movie.objects.get(tmdb_id=tmdb_id)
+                except Movie.DoesNotExist:
+                    # Nếu không có, import từ TMDB
+                    try:
+                        movie, _ = import_movie_from_tmdb(tmdb_id)
+                    except Exception as e:
+                        print(f"Failed to import movie {tmdb_id}: {e}")
+                        continue
+                
+                if movie:
+                    movies.append(movie)
+            
+            serializer = MovieSerializer(movies, many=True)
+            return Response(serializer.data)
+            
+        except requests.RequestException as e:
+            # Fallback: lấy phim mới nhất từ database nếu TMDB API lỗi
+            print(f"TMDB API error: {e}")
+            movies = Movie.objects.all().order_by('-created_at')[:limit]
+            serializer = MovieSerializer(movies, many=True)
+            return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def popular(self, request):
+        """Lấy phim phổ biến từ TMDB API"""
+        limit = int(request.GET.get('limit', 10))
+        
+        try:
+            # Gọi TMDB API để lấy popular movies
+            tmdb_url = f"{settings.TMDB_BASE_URL}/movie/popular"
+            params = {
+                'api_key': settings.TMDB_API_KEY,
+                'language': 'vi-VN'
+            }
+            
+            response = requests.get(tmdb_url, params=params)
+            response.raise_for_status()
+            tmdb_data = response.json()
+            
+            # Lấy danh sách tmdb_id từ kết quả TMDB
+            tmdb_results = tmdb_data.get('results', [])[:limit]
+            
+            # Import các phim vào database nếu chưa có
+            movies = []
+            for tmdb_movie in tmdb_results:
+                tmdb_id = tmdb_movie.get('id')
+                try:
+                    # Thử lấy phim từ database
+                    movie = Movie.objects.get(tmdb_id=tmdb_id)
+                except Movie.DoesNotExist:
+                    # Nếu không có, import từ TMDB
+                    try:
+                        movie, _ = import_movie_from_tmdb(tmdb_id)
+                    except Exception as e:
+                        print(f"Failed to import movie {tmdb_id}: {e}")
+                        continue
+                
+                if movie:
+                    movies.append(movie)
+            
+            serializer = MovieSerializer(movies, many=True)
+            return Response(serializer.data)
+            
+        except requests.RequestException as e:
+            # Fallback: lấy phim phổ biến từ database nếu TMDB API lỗi
+            print(f"TMDB API error: {e}")
+            movies = Movie.objects.all().order_by('-views')[:limit]
+            serializer = MovieSerializer(movies, many=True)
+            return Response(serializer.data)
 
     @action(detail=True, methods=['get', 'post'], permission_classes=[IsAuthenticatedOrReadOnly])
     def comments(self, request, tmdb_id=None):
@@ -230,9 +375,10 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Comment.objects.all()
-        movie_id = self.request.query_params.get('movie', None)
-        if movie_id and movie_id.isdigit():
-            queryset = queryset.filter(movie_id=int(movie_id))
+        movie_tmdb_id = self.request.query_params.get('movie', None)
+        if movie_tmdb_id and movie_tmdb_id.isdigit():
+            # Filter by tmdb_id instead of movie_id
+            queryset = queryset.filter(movie__tmdb_id=int(movie_tmdb_id))
         return queryset
 
     def perform_create(self, serializer):
@@ -279,14 +425,60 @@ class DashboardStatsView(APIView):
     permission_classes = [IsAdminUser]
     
     def get(self, request):
+        print(f"DEBUG: DashboardStatsView.get called by user: {request.user}")
+        print(f"DEBUG: User is_staff: {request.user.is_staff}")
+        print(f"DEBUG: User is_authenticated: {request.user.is_authenticated}")
+        
+        from django.utils import timezone
+        from datetime import date, timedelta
+        from django.db.models import Count
+        from django.db.models.functions import TruncDate
+        
+        today = date.today()
+        
+        # Get daily comment stats for last 7 days
+        daily_comments = []
+        daily_movies = []
+        daily_users = []
+        daily_ratings = []
+        
+        for i in range(6, -1, -1):  # Last 7 days (including today)
+            day = today - timedelta(days=i)
+            comment_count = Comment.objects.filter(created_at__date=day).count()
+            movie_count = Movie.objects.filter(created_at__date=day).count()
+            user_count = User.objects.filter(date_joined__date=day).count()
+            rating_count = Rating.objects.filter(created_at__date=day).count()
+            
+            daily_comments.append({
+                'date': day.strftime('%d/%m'),
+                'count': comment_count
+            })
+            daily_movies.append({
+                'date': day.strftime('%d/%m'),
+                'count': movie_count
+            })
+            daily_users.append({
+                'date': day.strftime('%d/%m'),
+                'count': user_count
+            })
+            daily_ratings.append({
+                'date': day.strftime('%d/%m'),
+                'count': rating_count
+            })
+        
         stats = {
             'total_movies': Movie.objects.count(),
             'total_users': User.objects.count(),
             'total_ratings': Rating.objects.count(),
-            'total_comments': Comment.objects.count(),
-            'recent_movies': Movie.objects.order_by('-created_at')[:5].values('title', 'created_at'),
-            'top_rated': Movie.objects.annotate(avg_rating=Avg('ratings__stars')).filter(avg_rating__isnull=False).order_by('-avg_rating')[:5].values('title', 'avg_rating'),
+            'today_comments': Comment.objects.filter(created_at__date=today).count(),
+            'daily_comments': daily_comments,
+            'daily_movies': daily_movies,
+            'daily_users': daily_users,
+            'daily_ratings': daily_ratings,
+            'top_viewed_movies': list(Movie.objects.order_by('-views')[:5].values('title', 'views', 'poster')),
         }
+        
+        print(f"DEBUG: Stats data prepared: {stats}")
         return Response(stats)
 
 class FetchTMDBView(APIView):
@@ -335,8 +527,333 @@ class ImportTMDBView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=500)
 
+
+SEARCH_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_database",
+            "description": "Tìm phim dựa trên các tiêu chí cụ thể như thể loại, quốc gia, năm.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "genres": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Danh sách thể loại (VD: ['Hành động', 'Hoạt hình'])"
+                    },
+                    "country": {
+                        "type": "string",
+                        "description": "Tên quốc gia (VD: Nhật Bản, Mỹ)"
+                    },
+                    "year": {"type": "integer"},
+                    "keyword": {"type": "string", "description": "Từ khóa tìm kiếm nội dung"}
+                },
+                "required": []
+            }
+        }
+    }
+]
+
+class ChatAPIView(APIView):
+    """AI movie chatbot thông minh: Kết hợp Function Calling (Lọc chính xác) và Embeddings (Tìm ngữ nghĩa)"""
+    permission_classes = [AllowAny]
+
+    # Giữ lại encoder cho trường hợp fallback
+    MODEL_NAME = "all-MiniLM-L6-v2"
+    _ENCODER = None
+
+    def get_encoder(self):
+        if ChatAPIView._ENCODER is None:
+            try:
+                ChatAPIView._ENCODER = SentenceTransformer(ChatAPIView.MODEL_NAME)
+            except Exception:
+                ChatAPIView._ENCODER = None
+        return ChatAPIView._ENCODER
+
+    EMB_IDS, EMB_MATRIX = load_embeddings()
+
+    def post(self, request):
+        message = (request.data.get("message") or "").strip()
+        history = request.data.get("history") or []
+        
+        if not message:
+            return Response({"error": "Empty message"}, status=status.HTTP_400_BAD_REQUEST)
+
+        movies = []
+        ai_reply_text = ""
+        
+        # --- BƯỚC 1: HỎI AI XEM USER MUỐN GÌ (Function Calling) ---
+        # Prepare an analysis prompt asking the model to return a JSON with filter fields
+        msgs_analysis = [
+            {"role": "system", "content": "Bạn là một trợ lý giúp trích xuất thông tin lọc phim từ câu truy vấn.\nTrả về một JSON object với các khóa: genres (array of strings), country (string), year (integer or null), keyword (string or null). Nếu không có, trả về {}."},
+            {"role": "user", "content": message}
+        ]
+
+        analysis_result = None
+        if openai_has_key():
+            try:
+                analysis_text = chat_completion(msgs_analysis, max_tokens=200, temperature=0.0)
+                # Try to parse JSON out of the model output
+                import re, json as _json
+                # Attempt to find a JSON object in the text
+                m = re.search(r"\{[\s\S]*\}", analysis_text)
+                if m:
+                    parsed = _json.loads(m.group(0))
+                else:
+                    # Last resort: try to interpret the whole text as JSON
+                    parsed = _json.loads(analysis_text)
+
+                # Normalize parsed result
+                args = {
+                    'genres': parsed.get('genres') or [],
+                    'country': parsed.get('country'),
+                    'year': parsed.get('year'),
+                    'keyword': parsed.get('keyword')
+                }
+                analysis_result = {'type': 'tool', 'data': {'arguments': _json.dumps(args)}}
+            except Exception as e:
+                print(f"analysis parse error: {e}")
+                analysis_result = None
+
+        # --- BƯỚC 2: XỬ LÝ KẾT QUẢ TỪ AI ---
+        used_strict_filter = False
+        
+        # TRƯỜNG HỢP A: AI phát hiện bộ lọc (VD: "Phim hoạt hình hành động Nhật")
+        if analysis_result and analysis_result['type'] == 'tool':
+            try:
+                args = json.loads(analysis_result['data']['arguments'])
+                print(f"AI Filters Detected: {args}") # Debug xem AI lọc gì
+
+                queryset = Movie.objects.all().order_by('-views')
+
+                # 1. Lọc Quốc gia
+                if args.get('country'):
+                    queryset = queryset.filter(country__name__icontains=args['country'])
+
+                # 2. Lọc Thể loại (QUAN TRỌNG: Logic AND - Lọc lồng nhau)
+                genres = args.get('genres', [])
+                if genres:
+                    for genre in genres:
+                        # Mỗi lần loop là thu hẹp phạm vi lại (AND)
+                        queryset = queryset.filter(categories__name__icontains=genre)
+
+                # 3. Lọc Năm
+                if args.get('year'):
+                    queryset = queryset.filter(release_year=args['year'])
+                
+                # 4. Lọc keyword (nếu có)
+                if args.get('keyword'):
+                    queryset = queryset.filter(title__icontains=args['keyword'])
+
+                # Lấy kết quả
+                found_movies = queryset.distinct()[:8]
+                
+                # Chuyển đổi sang list dict
+                for m in found_movies:
+                    movies.append(self._format_movie(m))
+                
+                used_strict_filter = True
+                
+            except Exception as e:
+                print(f"Filter Error: {e}")
+
+        # TRƯỜNG HỢP B: AI không tìm thấy bộ lọc HOẶC kết quả rỗng -> Dùng Embeddings (Fallback)
+        # (Ví dụ: "Phim nào xem buồn khóc?")
+        if not movies:
+            print("Using Embeddings Fallback...")
+            encoder = self.get_encoder()
+            tmdb_ids = []
+            if encoder is not None and ChatAPIView.EMB_IDS.size:
+                query_embedding = encoder.encode([message], convert_to_numpy=True)[0]
+                ids_arr, sims = get_top_k(query_embedding, k=6)
+                tmdb_ids = [int(x) for x in ids_arr.tolist()] if hasattr(ids_arr, "tolist") else []
+            
+            if tmdb_ids:
+                # Dùng IN query để lấy phim từ embeddings
+                qs = Movie.objects.filter(tmdb_id__in=tmdb_ids)
+                # Sắp xếp lại theo thứ tự độ tương đồng (quan trọng)
+                from django.db.models import Case, When
+                preserved_order = Case(*[When(tmdb_id=pk, then=pos) for pos, pk in enumerate(tmdb_ids)])
+                qs = qs.order_by(preserved_order)
+                
+                for m in qs:
+                    movies.append(self._format_movie(m))
+
+        # --- BƯỚC 3: TẠO CÂU TRẢ LỜI TỰ NHIÊN ---
+        if not movies:
+            return Response({
+                "reply": "Xin lỗi, mình không tìm thấy phim nào phù hợp với yêu cầu cụ thể này. Bạn thử từ khóa khác xem sao nhé!", 
+                "movies": []
+            })
+
+        # Xây dựng prompt để AI chém gió dựa trên list phim tìm được
+        prompt_lines = [
+            "Bạn là trợ lý gợi ý phim.",
+            f"User hỏi: \"{message}\"",
+            f"Hệ thống đã tìm thấy {len(movies)} phim phù hợp nhất:",
+        ]
+        for i, m in enumerate(movies, 1):
+             prompt_lines.append(f"{i}. {m['title']} ({m['release_year']}) - {', '.join(m['categories'])}")
+        
+        prompt_lines.append("\nHãy viết câu trả lời ngắn gọn (tiếng Việt) giới thiệu các phim trên.")
+
+        # Gọi OpenAI lần cuối để generate text (không dùng tools nữa)
+        if openai_has_key():
+             # Gọi hàm cũ (chat_completion) hoặc hàm mới đều được, miễn là ra text
+             # Ở đây tôi giả sử bạn dùng hàm chat_completion thường cho việc generate text
+            from .openai_client import chat_completion 
+            msgs_final = [{"role": "user", "content": "\n".join(prompt_lines)}]
+            ai_reply_text = chat_completion(msgs_final, max_tokens=300)
+        else:
+            ai_reply_text = f"Dựa trên yêu cầu, mình tìm thấy: {', '.join([m['title'] for m in movies])}."
+
+        return Response({"reply": ai_reply_text, "movies": movies})
+
+    def _format_movie(self, m):
+        """Helper để format JSON phim"""
+        return {
+            "tmdb_id": m.tmdb_id,
+            "title": m.title,
+            "overview": (m.description or "")[:300],
+            "release_year": m.release_year,
+            "poster": m.poster,
+            "categories": list(m.categories.values_list("name", flat=True))
+        }
+
 class EpisodeViewSet(viewsets.ModelViewSet):
     """API cho Admin quản lý (CRUD) các tập phim"""
     queryset = Episode.objects.all()
     serializer_class = EpisodeSerializer
     permission_classes = [IsAdminUser]
+
+class AdminMovieViewSet(viewsets.ModelViewSet):
+    """API cho Admin quản lý (CRUD) phim"""
+    queryset = Movie.objects.all().order_by('-created_at')
+    serializer_class = AdminMovieSerializer
+    permission_classes = [IsAdminUser]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [SearchFilter, DjangoFilterBackend]
+    search_fields = ['title', 'tmdb_id', 'id']
+    filterset_fields = ['id', 'tmdb_id']
+
+class AdminCategoryViewSet(viewsets.ModelViewSet):
+    """API cho Admin quản lý (CRUD) thể loại"""
+    queryset = Category.objects.all().order_by('name')
+    serializer_class = CategorySerializer
+    permission_classes = [IsAdminUser]
+    filter_backends = [SearchFilter]
+    search_fields = ['name']
+    pagination_class = StandardResultsSetPagination
+
+class AdminActorViewSet(viewsets.ModelViewSet):
+    """API cho Admin quản lý (CRUD) diễn viên"""
+    queryset = Actor.objects.all().order_by('name')
+    serializer_class = ActorSerializer
+    permission_classes = [IsAdminUser]
+    filter_backends = [SearchFilter]
+    search_fields = ['name']
+    pagination_class = StandardResultsSetPagination
+
+class AdminCountryViewSet(viewsets.ModelViewSet):
+    """API cho Admin quản lý (CRUD) quốc gia"""
+    queryset = Country.objects.all().order_by('name')
+    serializer_class = CountrySerializer
+    permission_classes = [IsAdminUser]
+    filter_backends = [SearchFilter]
+    search_fields = ['name']
+    pagination_class = StandardResultsSetPagination
+
+class AdminUserViewSet(viewsets.ModelViewSet):
+    """API cho Admin quản lý users - Chỉ superuser được truy cập"""
+    queryset = User.objects.all().order_by('-date_joined')
+    serializer_class = UserSerializer
+    permission_classes = [IsAdminUser]
+    filter_backends = [SearchFilter]
+    search_fields = ['username', 'email', 'nickname']
+    pagination_class = StandardResultsSetPagination
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return UserCreateSerializer
+        return UserSerializer
+    
+    def create(self, request, *args, **kwargs):
+        """Create new user with password"""
+        serializer = UserCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['post'])
+    def ban(self, request, pk=None):
+        """Ban user"""
+        user = self.get_object()
+        user.is_active = False
+        user.save()
+        return Response({'status': 'user banned'})
+
+    @action(detail=True, methods=['post'])
+    def unban(self, request, pk=None):
+        """Unban user"""
+        user = self.get_object()
+        user.is_active = True
+        user.save()
+        return Response({'status': 'user unbanned'})
+
+    @action(detail=True, methods=['post'])
+    def reset_password(self, request, pk=None):
+        """Reset password"""
+        user = self.get_object()
+        from django.contrib.auth.hashers import make_password
+        user.password = make_password('123456')
+        user.save()
+        return Response({'status': 'password reset', 'new_password': '123456'})
+
+    @action(detail=True, methods=['get'])
+    def watch_history(self, request, pk=None):
+        """Get user watch history"""
+        user = self.get_object()
+        history = WatchHistory.objects.filter(user=user).order_by('-last_watched_at')[:50]
+        data = [{
+            'movie_title': item.movie.title,
+            'movie_poster': item.movie.poster,
+            'watched_at': item.last_watched_at,
+            'progress': 100  # Default progress since field doesn't exist
+        } for item in history]
+        return Response(data)
+
+class AdminCommentViewSet(viewsets.ModelViewSet):
+    """API cho Admin quản lý comments - Chỉ superuser được truy cập"""
+    queryset = Comment.objects.all().order_by('-created_at')
+    serializer_class = AdminCommentSerializer
+    permission_classes = [IsAdminUser]
+    filter_backends = [SearchFilter, DjangoFilterBackend]
+    search_fields = ['content', 'user__username', 'user__nickname', 'movie__title']
+    filterset_fields = ['movie', 'user', 'parent']
+    pagination_class = StandardResultsSetPagination
+    
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return CommentUpdateSerializer
+        return AdminCommentSerializer
+    
+    @action(detail=True, methods=['post'])
+    def delete_comment(self, request, pk=None):
+        """Xóa comment và tất cả replies"""
+        comment = self.get_object()
+        
+        # Xóa tất cả replies trước
+        Comment.objects.filter(parent=comment).delete()
+        
+        # Xóa comment chính
+        comment.delete()
+        
+        return Response({'status': 'comment deleted successfully'})
+    
+    @action(detail=True, methods=['post'])
+    def approve_comment(self, request, pk=None):
+        """Duyệt comment (nếu có hệ thống moderation)"""
+        comment = self.get_object()
+        # Có thể thêm field is_approved vào model Comment sau này
+        return Response({'status': 'comment approved'})

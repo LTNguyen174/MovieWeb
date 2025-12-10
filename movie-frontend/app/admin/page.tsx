@@ -4,11 +4,13 @@ import type React from "react"
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Users, Film, MessageSquare, Eye, Search, LayoutDashboard, LogOut } from "lucide-react"
+import { Users, Film, MessageSquare, Eye, Search, LayoutDashboard, LogOut, Tag, User, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AdminStatCard } from "@/components/admin-stat-card"
 import { AdminTable } from "@/components/admin-table"
+import { Navbar } from "@/components/navbar"
+import { Footer } from "@/components/footer"
 import Link from "next/link"
 
 export default function AdminDashboardPage() {
@@ -43,43 +45,10 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-card border-r border-border p-6 hidden lg:block">
-        <Link href="/" className="flex items-center gap-2 mb-8">
-          <Film className="w-8 h-8 text-primary" />
-          <span className="text-xl font-bold">CineStream</span>
-        </Link>
-
-        <nav className="space-y-2">
-          <Button variant="secondary" className="w-full justify-start gap-3">
-            <LayoutDashboard className="w-5 h-5" />
-            Dashboard
-          </Button>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground">
-            <Film className="w-5 h-5" />
-            Movies
-          </Button>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground">
-            <Users className="w-5 h-5" />
-            Users
-          </Button>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground">
-            <MessageSquare className="w-5 h-5" />
-            Comments
-          </Button>
-        </nav>
-
-        <div className="absolute bottom-6 left-6 right-6">
-          <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground">
-            <LogOut className="w-5 h-5" />
-            Logout
-          </Button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 p-6 lg:p-8">
+    <div className="min-h-screen">
+      <Navbar />
+      
+      <main className="container mx-auto px-4 py-8">
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
@@ -131,6 +100,8 @@ export default function AdminDashboardPage() {
           )}
         </motion.section>
       </main>
+      
+      <Footer />
     </div>
   )
 }

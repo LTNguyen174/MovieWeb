@@ -4,6 +4,7 @@ import { Inter, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { AuthProvider } from "@/hooks/use-auth"
+import ChatBox from "@/components/chat-box"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
@@ -47,6 +48,7 @@ export default function RootLayout({
       <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased min-h-screen`}>
         <AuthProvider>
           {children}
+          <ChatBox />
         </AuthProvider>
         <Analytics />
       </body>

@@ -65,6 +65,27 @@ export default function SearchPage() {
     loadData()
   }, [])
 
+  // Handle suggested movies from AI chatbot
+  useEffect(() => {
+    const suggested = searchParams.get("suggested")
+    if (suggested) {
+      setHasSearched(true)
+      setLoading(true)
+      ;(async () => {
+        try {
+          const response = await moviesAPI.getMovies({ tmdb_ids: suggested })
+          const list = Array.isArray(response) ? response : response.results || []
+          setMovies(list)
+        } catch (err) {
+          console.error("Failed to load suggested movies:", err)
+          setMovies([])
+        } finally {
+          setLoading(false)
+        }
+      })()
+    }
+  }, [searchParams])
+
   const handleCategoryToggle = (categoryId: number) => {
     setSelectedCategories(prev => 
       prev.includes(categoryId) 

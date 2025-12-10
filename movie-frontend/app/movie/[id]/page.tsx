@@ -261,6 +261,7 @@ export default function MovieDetailPage() {
                     movie_tmdb_id: comment.movie_tmdb_id ?? movieId,
                   }}
                   index={index}
+                  currentUsername={user?.username || null}
                   isOwner={comment.username === user?.username}
                   onEdit={async (id) => {
                     const newContent = prompt("Edit comment:")

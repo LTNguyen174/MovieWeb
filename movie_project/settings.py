@@ -11,11 +11,13 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os                # <-- THÊM DÒNG NÀY
 from dotenv import load_dotenv # <-- THÊM DÒNG NÀY
-load_dotenv()
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env explicitly from project root so django reads env vars on startup
+load_dotenv(str(BASE_DIR / '.env'))
 
 
 # Quick-start development settings - unsuitable for production
@@ -182,6 +184,9 @@ SIMPLE_JWT = {
 
 TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
+
+# OpenAI API key (optional) - loaded from environment/.env
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # CORS Configuration - Cho phép frontend kết nối
 CORS_ALLOWED_ORIGINS = [
