@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button"
 import { MovieCard } from "@/components/movie-card"
 import { MovieGrid } from "@/components/movie-grid"
 import { Tag } from "@/components/tag"
-import { moviesAPI, type Movie, type Category } from "@/lib/api"
+import { moviesAPI, categoriesAPI, countriesAPI, yearsAPI } from '@/lib/api'
 import { useRouter, useSearchParams } from "next/navigation"
+import type { Movie, Category } from '@/lib/api'
 
 export default function SearchPage() {
   const router = useRouter()
@@ -18,16 +19,15 @@ export default function SearchPage() {
   const [movies, setMovies] = useState<Movie[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [countries, setCountries] = useState<{id: number, name: string}[]>([])
+  const [years, setYears] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [selectedCountry, setSelectedCountry] = useState<string>('')
   const [hasSearched, setHasSearched] = useState(false)
-
-  // Year options (last 20 years)
-  const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: 20 }, (_, i) => currentYear - i)
+  const [extractedKeywords, setExtractedKeywords] = useState<any>(null)
+  const [isExtracting, setIsExtracting] = useState(false)
 
   useEffect(() => {
     // Load categories and countries from database
@@ -37,25 +37,32 @@ export default function SearchPage() {
         const categoriesData = await moviesAPI.getCategories()
         setCategories(Array.isArray(categoriesData) ? categoriesData : [])
 
-        // Load countries from static list
-        const staticCountries = [
-          { id: 1, name: "United States" },
-          { id: 2, name: "United Kingdom" },
-          { id: 3, name: "France" },
-          { id: 4, name: "Germany" },
-          { id: 5, name: "Italy" },
-          { id: 6, name: "Spain" },
-          { id: 7, name: "Japan" },
-          { id: 8, name: "South Korea" },
-          { id: 9, name: "China" },
-          { id: 10, name: "India" },
-          { id: 11, name: "Canada" },
-          { id: 12, name: "Australia" },
-          { id: 13, name: "Brazil" },
-          { id: 14, name: "Mexico" },
-          { id: 15, name: "Russia" },
-        ]
-        setCountries(staticCountries)
+        // Load countries from database
+        try {
+          console.log('DEBUG: Loading countries from API...')
+          const countriesData = await countriesAPI.getCountries()
+          console.log('DEBUG: Countries loaded:', countriesData.length, 'countries')
+          console.log('DEBUG: First 10 countries:', countriesData.slice(0, 10))
+          console.log('DEBUG: Last 10 countries:', countriesData.slice(-10))
+          setCountries(Array.isArray(countriesData) ? countriesData : [])
+        } catch (err) {
+          console.error("Failed to load countries:", err)
+          console.log('DEBUG: Setting empty countries array - API failed')
+          // Don't use fallback - let user know API failed
+          setCountries([])
+        }
+
+        // Load years from database
+        try {
+          console.log('DEBUG: Loading years from API...')
+          const yearsData = await yearsAPI.getYears()
+          console.log('DEBUG: Years loaded:', yearsData.length, 'years')
+          setYears(Array.isArray(yearsData) ? yearsData : [])
+        } catch (err) {
+          console.error("Failed to load years:", err)
+          console.log('DEBUG: Setting empty years array - API failed')
+          setYears([])
+        }
       } catch (err) {
         console.error("Failed to load data:", err)
         setCategories([])
@@ -98,26 +105,191 @@ export default function SearchPage() {
     setLoading(true)
     setHasSearched(true)
     
+    // Reset all filters before applying new search
+    setSelectedCategories([])
+    setSelectedYear('')
+    setSelectedCountry('')
+    setExtractedKeywords(null)
+    
     try {
       const params: any = {}
       
       if (searchQuery.trim()) {
-        params.search = searchQuery.trim()
+        // Extract keywords first
+        const keywords = await extractKeywords(searchQuery.trim())
+        console.log('Extracted keywords for search:', keywords)
+        
+        // Use extracted keywords based on query type
+        if (keywords.query_type === 'structured') {
+          // Structured query: only use filters, no title search
+          if (keywords.genres.length > 0) {
+            params.categories = keywords.genres.join(',')
+            
+            // Auto-select genre checkboxes
+            const categoryIds = keywords.genres.map(genre => {
+              const category = categories.find(cat => cat.name === genre)
+              return category ? category.id : null
+            }).filter(id => id !== null)
+            
+            if (categoryIds.length > 0) {
+              setSelectedCategories(categoryIds)
+            }
+          }
+          
+          if (keywords.country) {
+            // Auto-select country dropdown with mapping
+            const countryMapping: { [key: string]: string } = {
+              'united states of america': 'United States of America',
+              'united kingdom': 'United Kingdom',
+              'vietnam': 'Vietnam',
+              'japan': 'Japan',
+              'south korea': 'South Korea',
+              'china': 'China',
+              'finland': 'Finland',
+              'france': 'France',
+              'germany': 'Germany',
+              'italy': 'Italy',
+              'spain': 'Spain',
+              'canada': 'Canada',
+              'australia': 'Australia',
+              'brazil': 'Brazil',
+              'mexico': 'Mexico',
+              'russia': 'Russia',
+              'india': 'India'
+            }
+            
+            const mappedCountryName = countryMapping[keywords.country.toLowerCase()] || keywords.country
+            const country = countries.find(c => c.name === mappedCountryName)
+            
+            if (country) {
+              console.log('DEBUG: Setting selectedCountry to:', country.name)
+              setSelectedCountry(country.name)
+              params.country = country.name
+              
+              await new Promise(resolve => setTimeout(resolve, 10))
+            } else {
+              if (countries.length === 0) {
+                console.log('DEBUG: Countries not loaded, setting selectedCountry to:', mappedCountryName)
+                setSelectedCountry(mappedCountryName)
+                params.country = mappedCountryName
+                await new Promise(resolve => setTimeout(resolve, 10))
+              } else {
+                console.log('DEBUG: Country not found, using fallback:', keywords.country)
+                params.country = keywords.country
+              }
+            }
+          }
+          
+          if (keywords.year) {
+            params.release_year = keywords.year
+            setSelectedYear(keywords.year.toString())
+          }
+          
+          // Display extracted keywords for structured query
+          if (keywords.genres.length > 0 || keywords.country || keywords.year) {
+            setExtractedKeywords({
+              keywords,
+              formatted_info: `${keywords.genres.length > 0 ? `Thể loại: ${keywords.genres.join(', ')}` : ''}${keywords.country ? ` | Quốc gia: ${keywords.country}` : ''}${keywords.year ? ` | Năm: ${keywords.year}` : ''}`.trim()
+            })
+          } else {
+            setExtractedKeywords(null)
+          }
+          
+        } else if (keywords.query_type === 'title_search') {
+          // Title search: only search by movie title
+          if (keywords.movie_title) {
+            params.search = keywords.movie_title
+          }
+          
+          // Display title search info
+          setExtractedKeywords({
+            keywords,
+            formatted_info: `Tìm kiếm theo tên: "${keywords.movie_title}"`
+          })
+          
+        } else {
+          // Natural query: use both title search and filters
+          if (keywords.movie_title) {
+            params.search = keywords.movie_title
+          }
+          
+          if (keywords.genres.length > 0) {
+            params.categories = keywords.genres.join(',')
+            
+            // Auto-select genre checkboxes
+            const categoryIds = keywords.genres.map(genre => {
+              const category = categories.find(cat => cat.name === genre)
+              return category ? category.id : null
+            }).filter(id => id !== null)
+            
+            if (categoryIds.length > 0) {
+              setSelectedCategories(categoryIds)
+            }
+          }
+          
+          if (keywords.country) {
+            // Auto-select country dropdown with mapping
+            const countryMapping: { [key: string]: string } = {
+              'united states of america': 'United States of America',
+              'united kingdom': 'United Kingdom',
+              'vietnam': 'Vietnam',
+              'japan': 'Japan',
+              'south korea': 'South Korea',
+              'china': 'China',
+              'finland': 'Finland',
+              'france': 'France',
+              'germany': 'Germany',
+              'italy': 'Italy',
+              'spain': 'Spain',
+              'canada': 'Canada',
+              'australia': 'Australia',
+              'brazil': 'Brazil',
+              'mexico': 'Mexico',
+              'russia': 'Russia',
+              'india': 'India'
+            }
+            
+            const mappedCountryName = countryMapping[keywords.country.toLowerCase()] || keywords.country
+            const country = countries.find(c => c.name === mappedCountryName)
+            
+            if (country) {
+              console.log('DEBUG: Setting selectedCountry to:', country.name)
+              setSelectedCountry(country.name)
+              params.country = country.name
+              
+              await new Promise(resolve => setTimeout(resolve, 10))
+            } else {
+              if (countries.length === 0) {
+                console.log('DEBUG: Countries not loaded, setting selectedCountry to:', mappedCountryName)
+                setSelectedCountry(mappedCountryName)
+                params.country = mappedCountryName
+                await new Promise(resolve => setTimeout(resolve, 10))
+              } else {
+                console.log('DEBUG: Country not found, using fallback:', keywords.country)
+                params.country = keywords.country
+              }
+            }
+          }
+          
+          if (keywords.year) {
+            params.release_year = keywords.year
+            setSelectedYear(keywords.year.toString())
+          }
+          
+          // Display extracted keywords for natural query
+          if (keywords.movie_title || keywords.genres.length > 0 || keywords.country || keywords.year) {
+            setExtractedKeywords({
+              keywords,
+              formatted_info: `${keywords.movie_title ? `Tên phim: ${keywords.movie_title}` : ''}${keywords.genres.length > 0 ? ` | Thể loại: ${keywords.genres.join(', ')}` : ''}${keywords.country ? ` | Quốc gia: ${keywords.country}` : ''}${keywords.year ? ` | Năm: ${keywords.year}` : ''}`.trim()
+            })
+          } else {
+            setExtractedKeywords(null)
+          }
+        }
       }
       
-      if (selectedCategories.length > 0) {
-        params.categories = selectedCategories.join(',')
-      }
-      
-      if (selectedYear) {
-        params.release_year = parseInt(selectedYear)
-      }
-      
-      if (selectedCountry) {
-        // For country, we need to filter by country name
-        // This will require custom filtering on the backend
-        params.country = selectedCountry
-      }
+      // Note: We don't need to add manual filters here since we reset them at the start
+      // Only use the filters that were set by keyword extraction
       
       console.log('Search params:', params)
       const response = await moviesAPI.getMovies(params)
@@ -131,6 +303,41 @@ export default function SearchPage() {
     }
   }
 
+  const extractKeywords = async (query: string) => {
+    try {
+      const result = await moviesAPI.extractKeywords(query)
+      return result.keywords as {
+        query_type: 'structured' | 'title_search' | 'natural',
+        genres: string[]
+        country: string
+        year: number | null
+        movie_title: string
+        keywords: string[]
+        original_query: string
+      }
+    } catch (err) {
+      console.error("Keyword extraction failed:", err)
+      return { 
+        query_type: 'natural' as const,
+        genres: [], 
+        country: '', 
+        year: null, 
+        movie_title: '', 
+        keywords: [], 
+        original_query: query 
+      }
+    }
+  }
+
+  const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newQuery = e.target.value
+    setSearchQuery(newQuery)
+    
+    // Clear extracted keywords when user changes the query
+    // Only show results when they click search
+    setExtractedKeywords(null)
+  }
+
   const clearFilters = () => {
     setSearchQuery('')
     setSelectedCategories([])
@@ -138,6 +345,7 @@ export default function SearchPage() {
     setSelectedCountry('')
     setMovies([])
     setHasSearched(false)
+    setExtractedKeywords(null)
     
     // Update URL to clean state
     router.push('/search')
@@ -152,6 +360,20 @@ export default function SearchPage() {
     // Remove URL update effect
     return
   }, [])
+
+  // Debug: Log when selectedCountry changes
+  useEffect(() => {
+    console.log('DEBUG: selectedCountry changed to:', selectedCountry)
+  }, [selectedCountry])
+
+  // Debug: Log when countries array changes
+  useEffect(() => {
+    console.log('DEBUG: countries array updated:', countries.length, 'countries')
+    if (countries.length > 0) {
+      console.log('DEBUG: First country:', countries[0])
+      console.log('DEBUG: Last country:', countries[countries.length - 1])
+    }
+  }, [countries])
 
   return (
     <div className="min-h-screen">
@@ -185,11 +407,29 @@ export default function SearchPage() {
                 type="text"
                 placeholder="Tìm kiếm theo tên phim..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleQueryChange}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
+            
+            {/* Extracted Keywords Display */}
+            {isExtracting && (
+              <div className="mt-3 text-sm text-muted-foreground">
+                Đang phân tích từ khóa...
+              </div>
+            )}
+            
+            {extractedKeywords && (
+              <div className="mt-3 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                <div className="text-sm font-medium text-primary mb-2">
+                  Từ khóa đã nhận diện:
+                </div>
+                <div className="text-sm text-foreground">
+                  {extractedKeywords.formatted_info}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Filters Grid */}
@@ -292,11 +532,16 @@ export default function SearchPage() {
           >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold">
-                Kết quả tìm kiếm ({movies.length} phim)
               </h2>
               {(searchQuery || selectedCategories.length > 0 || selectedYear || selectedCountry) && (
                 <div className="flex flex-wrap gap-2">
-                  {searchQuery && (
+                  {extractedKeywords && (extractedKeywords.keywords.movie_title || extractedKeywords.keywords.genres.length > 0 || extractedKeywords.keywords.country || extractedKeywords.keywords.year) ? (
+                    // Show extracted keywords only if meaningful keywords were found
+                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                      ✓ Đã tự động lọc theo từ khóa
+                    </span>
+                  ) : searchQuery && (
+                    // Fallback to original query if no keywords extracted
                     <span className="px-3 py-1 bg-primary/20 text-primary rounded-full text-sm">
                       "{searchQuery}"
                     </span>
@@ -333,8 +578,19 @@ export default function SearchPage() {
               </div>
             ) : (
               <MovieGrid 
-                title={searchQuery ? `Kết quả tìm kiếm: "${searchQuery}"` : undefined}
-                searchQuery={searchQuery || undefined}
+                title={extractedKeywords && (extractedKeywords.keywords.movie_title || extractedKeywords.keywords.genres.length > 0 || extractedKeywords.keywords.country || extractedKeywords.keywords.year) ? 
+                  (extractedKeywords.keywords.movie_title ? 
+                    `Kết quả tìm kiếm: "${extractedKeywords.keywords.movie_title}"` :
+                    `Kết quả tìm kiếm (đã lọc tự động)`
+                  ) :
+                  searchQuery ? `Kết quả tìm kiếm: "${searchQuery}"` : 
+                  undefined
+                }
+                searchQuery={extractedKeywords && extractedKeywords.keywords.movie_title ? 
+                  extractedKeywords.keywords.movie_title : 
+                  (searchQuery && !extractedKeywords) ? searchQuery :
+                  undefined
+                }
                 categoryIds={selectedCategories.length > 0 ? selectedCategories : undefined}
                 releaseYear={selectedYear ? parseInt(selectedYear) : undefined}
                 country={selectedCountry || undefined}

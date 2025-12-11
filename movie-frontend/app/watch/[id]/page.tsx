@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { Play, Plus, Share2, Heart, Calendar, Clock, Star, ArrowLeft } from "lucide-react"
+import { Play, Plus, Share2, Heart, Calendar, Clock, Star, ArrowLeft, Eye } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
@@ -51,6 +51,27 @@ export default function WatchPage() {
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const viewIncrementedRef = useRef(false)
+
+  // Increment view count - chỉ tăng 1 lần với useEffect riêng
+  useEffect(() => {
+    const incrementView = async () => {
+      console.log("incrementView called, viewIncrementedRef.current:", viewIncrementedRef.current)
+      if (!viewIncrementedRef.current && movieId) {
+        try {
+          console.log("Calling incrementView API for movieId:", movieId)
+          const result = await moviesAPI.incrementView(movieId)
+          console.log("incrementView API response:", result)
+          viewIncrementedRef.current = true
+          console.log("incrementView successful")
+        } catch (err) {
+          console.warn("Failed to increment view:", err)
+        }
+      }
+    }
+    
+    incrementView()
+  }, [movieId])
 
   // Fetch movie data từ API
   useEffect(() => {
@@ -80,13 +101,6 @@ export default function WatchPage() {
         // Fetch comments
         const commentsData = await moviesAPI.getComments(movieId)
         setComments(commentsData)
-
-        // Increment view count
-        try {
-          await moviesAPI.incrementView(movieId)
-        } catch (err) {
-          console.warn("Failed to increment view:", err)
-        }
 
         // Record watch history (requires auth). Ignore errors if not logged in.
         try {
@@ -229,6 +243,10 @@ export default function WatchPage() {
                   <span>{movie.average_rating.toFixed(1)}</span>
                 </div>
               )}
+              <div className="flex items-center gap-1">
+                <Eye className="w-4 h-4" />
+                <span>{(movie.views || 0).toLocaleString()}</span>
+              </div>
             </div>
 
             {/* Description */}

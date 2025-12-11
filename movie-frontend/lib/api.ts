@@ -127,6 +127,7 @@ export interface Movie {
   country?: string
   average_rating?: number | null
   is_favorite?: boolean
+  views?: number
 }
 
 export interface MovieDetail extends Movie {
@@ -135,6 +136,7 @@ export interface MovieDetail extends Movie {
   user_rating?: number | null
   is_favorite?: boolean
   trailer_url?: string | null
+  views?: number
 }
 
 export interface Comment {
@@ -437,6 +439,26 @@ export const moviesAPI = {
     if (!response.ok) throw new Error("Failed to record watch history")
     return response.json()
   },
+
+  // POST /api/movies/extract_keywords/
+  async extractKeywords(query: string): Promise<{
+    keywords: {
+      genres: string[]
+      country: string
+      year: number | null
+      keywords: string[]
+      original_query: string
+    }
+    formatted_info: string
+  }> {
+    const response = await fetch(`${API_BASE_URL}/movies/extract_keywords/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    })
+    if (!response.ok) throw new Error("Failed to extract keywords")
+    return response.json()
+  },
 }
 
 // ============================================
@@ -458,6 +480,33 @@ export const categoriesAPI = {
     const response = await fetch(`${API_BASE_URL}/categories/${id}/`)
     if (!response.ok) throw new Error("Failed to fetch category")
     return response.json()
+  },
+}
+
+// ============================================
+// COUNTRIES API
+// ============================================
+
+export const countriesAPI = {
+  // GET /api/countries/
+  async getCountries(): Promise<{id: number, name: string}[]> {
+    const response = await fetch(`${API_BASE_URL}/countries/`)
+    if (!response.ok) throw new Error("Failed to fetch countries")
+    const data = await response.json()
+    // Handle both paginated and non-paginated responses
+    // Since we removed pagination, it should return array directly
+    return Array.isArray(data) ? data : (data?.results || [])
+  },
+}
+
+export const yearsAPI = {
+  // GET /api/years/
+  async getYears(): Promise<number[]> {
+    const response = await fetch(`${API_BASE_URL}/years/`)
+    if (!response.ok) throw new Error("Failed to fetch years")
+    const data = await response.json()
+    // Should return array of years directly
+    return Array.isArray(data) ? data : []
   },
 }
 

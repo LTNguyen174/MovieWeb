@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    MovieViewSet, CategoryViewSet, CommentViewSet,
+    MovieViewSet, CategoryViewSet, CommentViewSet, CountryViewSet, YearViewSet,
     DashboardStatsView, FetchTMDBView, ImportTMDBView, ChatAPIView,
     AdminMovieViewSet, AdminCategoryViewSet, AdminActorViewSet, AdminCountryViewSet, AdminUserViewSet, AdminCommentViewSet
 )
@@ -10,6 +10,8 @@ router = DefaultRouter()
 router.register(r'movies', MovieViewSet, basename='movie')
 router.register(r'categories', CategoryViewSet)
 router.register(r'comments', CommentViewSet)
+router.register(r'countries', CountryViewSet)
+router.register(r'years', YearViewSet, basename='year')
 router.register(r'admin/movies', AdminMovieViewSet, basename='admin-movie')
 router.register(r'admin/categories', AdminCategoryViewSet, basename='admin-category')
 router.register(r'admin/actors', AdminActorViewSet, basename='admin-actor')
@@ -26,7 +28,7 @@ admin_patterns = [
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('chat/', ChatAPIView.as_view(), name='api-chat'),
+    # path('chat/', ChatAPIView.as_view(), name='api-chat'),  # Temporarily disabled
     # Thêm path /api/admin/ vào trước các admin_patterns
     path('admin/', include(admin_patterns)),
 ]

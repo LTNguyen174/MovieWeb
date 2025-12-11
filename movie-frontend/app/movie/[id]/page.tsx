@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useParams } from "next/navigation"
-import { Play, Plus, Share2, Heart, Calendar, Clock, Star } from "lucide-react"
+import { Play, Plus, Share2, Heart, Calendar, Clock, Star, Eye } from "lucide-react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
@@ -42,6 +42,8 @@ export default function MovieDetailPage() {
 
         // Fetch movie details
         const movieData = await moviesAPI.getMovie(movieId)
+        console.log("Movie data:", movieData) 
+        console.log("Views field:", movieData.views) // Debug views specifically
         setMovie(movieData)
         // Prefill user's previous rating if available
         if (typeof (movieData as any).user_rating === 'number') {
@@ -55,14 +57,6 @@ export default function MovieDetailPage() {
         // Fetch comments
         const commentsData = await moviesAPI.getComments(movieId)
         setComments(commentsData)
-
-        // Increment view count
-        try {
-          await moviesAPI.incrementView(movieId)
-        } catch (err) {
-          // Ignore view increment errors
-          console.warn("Failed to increment view:", err)
-        }
       } catch (err) {
         console.error("Failed to fetch movie:", err)
         setError("Không thể tải thông tin phim")
@@ -160,6 +154,10 @@ export default function MovieDetailPage() {
                   <span>{movie.average_rating.toFixed(1)}</span>
                 </div>
               )}
+              <div className="flex items-center gap-1">
+                <Eye className="w-4 h-4" />
+                <span>{(movie.views || 0).toLocaleString()}</span>
+              </div>
             </div>
 
             {/* Description */}

@@ -98,10 +98,11 @@ class MovieSerializer(serializers.ModelSerializer):
     country = serializers.StringRelatedField(read_only=True)
     average_rating = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
+    views = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Movie
-        fields = ('title', 'poster', 'release_year', 'tmdb_id', 'categories', 'country', 'description', 'average_rating', 'is_favorite')
+        fields = ('title', 'poster', 'release_year', 'tmdb_id', 'categories', 'country', 'description', 'average_rating', 'is_favorite', 'views')
 
     def get_average_rating(self, obj):
         avg = obj.ratings.aggregate(Avg('stars'))['stars__avg']
@@ -121,11 +122,12 @@ class MovieDetailSerializer(serializers.ModelSerializer):
     average_rating = serializers.SerializerMethodField()
     user_rating = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
+    views = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Movie
         fields = ('tmdb_id', 'title', 'description', 'poster', 'release_year', 
-                  'categories', 'country', 'average_rating', 'user_rating', 'is_favorite', 'trailer_url')
+                  'categories', 'country', 'average_rating', 'user_rating', 'is_favorite', 'trailer_url', 'views')
 
     def get_average_rating(self, obj):
         # 'ratings' là related_name từ model Rating

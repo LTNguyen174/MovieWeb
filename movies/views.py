@@ -2,6 +2,7 @@ import requests
 import os, json
 from .openai_client import has_key as openai_has_key, chat_completion_with_tools
 from .embeddings import load_embeddings, get_top_k
+from .keyword_extractor import extractor
 from sentence_transformers import SentenceTransformer
 from .tmdb_service import import_movie_from_tmdb
 from django.conf import settings
@@ -49,11 +50,59 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['title']
     pagination_class = StandardResultsSetPagination
 
+    @action(detail=False, methods=['post'], permission_classes=[AllowAny])
+    def extract_keywords(self, request):
+        """Extract keywords from search query using SBERT"""
+        query = request.data.get('query', '').strip()
+        if not query:
+            return Response({'error': 'Query parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            keywords = extractor.extract_keywords(query)
+            formatted_info = extractor.format_extracted_info(keywords)
+            
+            return Response({
+                'keywords': keywords,
+                'formatted_info': formatted_info
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     def get_queryset(self):
         queryset = Movie.objects.all().order_by('-views')
         
         # DEBUG: Log all query parameters
         print(f"DEBUG MovieViewSet: Query params = {self.request.query_params}")
+        
+        # Enhanced search with keyword extraction
+        search_param = self.request.query_params.get('search', None)
+        if search_param:
+            # Extract keywords using SBERT
+            keywords = extractor.extract_keywords(search_param)
+            print(f"DEBUG Extracted keywords: {keywords}")
+            
+            # Apply filters based on extracted keywords
+            
+            # Filter by movie title if specified
+            if keywords['movie_title']:
+                queryset = queryset.filter(title__icontains=keywords['movie_title'])
+            
+            # Filter by genres
+            if keywords['genres']:
+                for genre in keywords['genres']:
+                    queryset = queryset.filter(categories__name__icontains=genre)
+            
+            # Filter by country
+            if keywords['country']:
+                queryset = queryset.filter(country__name__icontains=keywords['country'])
+            
+            # Filter by year
+            if keywords['year']:
+                queryset = queryset.filter(release_year=keywords['year'])
+            
+            # If no specific filters found, use traditional title search
+            if not keywords['genres'] and not keywords['country'] and not keywords['year'] and not keywords['movie_title']:
+                queryset = queryset.filter(title__icontains=search_param)
         
         # Filter by tmdb_ids (for AI suggestions)
         tmdb_ids_param = self.request.query_params.get('tmdb_ids', None)
@@ -134,10 +183,7 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
         
         WatchHistory.objects.get_or_create(user=user, movie=movie)
         
-        # Tăng lượt xem
-        movie.views += 1
-        movie.save(update_fields=['views'])
-        
+        # Không tăng views ở đây - chỉ increment_view mới tăng
         return Response({'message': 'Marked as watched'}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], permission_classes=[AllowAny])
@@ -826,12 +872,8 @@ class AdminUserViewSet(viewsets.ModelViewSet):
 class AdminCommentViewSet(viewsets.ModelViewSet):
     """API cho Admin quản lý comments - Chỉ superuser được truy cập"""
     queryset = Comment.objects.all().order_by('-created_at')
-    serializer_class = AdminCommentSerializer
-    permission_classes = [IsAdminUser]
-    filter_backends = [SearchFilter, DjangoFilterBackend]
-    search_fields = ['content', 'user__username', 'user__nickname', 'movie__title']
-    filterset_fields = ['movie', 'user', 'parent']
-    pagination_class = StandardResultsSetPagination
+    serializer_class = CommentSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
     
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -857,3 +899,31 @@ class AdminCommentViewSet(viewsets.ModelViewSet):
         comment = self.get_object()
         # Có thể thêm field is_approved vào model Comment sau này
         return Response({'status': 'comment approved'})
+
+
+class CountryViewSet(viewsets.ReadOnlyModelViewSet):
+    """API để lấy danh sách quốc gia"""
+    queryset = Country.objects.all().order_by('name')
+    serializer_class = CountrySerializer
+    permission_classes = [AllowAny]
+    filter_backends = [SearchFilter, DjangoFilterBackend]
+    search_fields = ['name']
+    filterset_fields = ['name']
+    pagination_class = None  # Disable pagination completely to return all countries
+
+
+class YearViewSet(viewsets.ReadOnlyModelViewSet):
+    """API để lấy danh sách năm phát hành phim"""
+    permission_classes = [AllowAny]
+    pagination_class = None  # Disable pagination completely to return all years
+    
+    def list(self, request):
+        # Get distinct years from movies
+        years = Movie.objects.values_list('release_year', flat=True).filter(
+            release_year__isnull=False
+        ).distinct().order_by('-release_year')
+        
+        # Convert to list of integers and filter valid years
+        year_list = [int(year) for year in years if year and 1900 <= year <= 2030]
+        
+        return Response(year_list)
