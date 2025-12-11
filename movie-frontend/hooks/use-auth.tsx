@@ -9,6 +9,7 @@ interface User {
   username: string
   nickname?: string | null
   isAdmin: boolean
+  isSuperUser?: boolean
   date_joined?: string
 }
 
@@ -21,6 +22,7 @@ interface AuthContextType {
   googleLogin: () => void
   logout: () => void
   updateUserNickname: (nickname: string | null) => void
+  setUser: (user: User | null) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -63,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           username: username,
           nickname: null, // Will be loaded from profile
           isAdmin: Boolean(payload.is_staff), // Ensure isAdmin is always boolean
+          isSuperUser: Boolean(payload.is_superuser), // Add superuser field
         })
         
         // Load profile to get nickname (async, không block)
@@ -96,8 +99,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const payload = JSON.parse(atob(tokens.access.split(".")[1]))
     const loggedInUser = {
       username: payload.username || username,
-      nickname: null, // Will be loaded from profile
+      nickname: null,
       isAdmin: payload.is_staff || false,
+      isSuperUser: payload.is_superuser || false,
     }
     setUser(loggedInUser)
     
@@ -145,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         googleLogin,
         logout,
         updateUserNickname,
+        setUser,
       }}
     >
       {children}

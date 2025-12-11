@@ -159,8 +159,8 @@ class GoogleOAuthView(APIView):
             print(f"Raw client_secret_env: '{client_secret_env}'")
             
             # Remove quotes if present
-            client_id = client_id_env.strip("'\"") if client_id_env else '78794365796-64kq0imn1movnsb5asil46etfd0pd21v.apps.googleusercontent.com'
-            client_secret = client_secret_env.strip("'\"") if client_secret_env else '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'
+            client_id = client_id_env.strip("'\"") if client_id_env else '52400622984-fa8qaefru7lrir0v2ce49eqidpshq0b2.apps.googleusercontent.com'
+            client_secret = client_secret_env.strip("'\"") if client_secret_env else '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'
             
             print(f"After strip - GOOGLE_CLIENT_ID: '{client_id}'")
             print(f"After strip - GOOGLE_CLIENT_SECRET: '{client_secret[:10]}...'")

@@ -811,13 +811,25 @@ class AdminCountryViewSet(viewsets.ModelViewSet):
     pagination_class = StandardResultsSetPagination
 
 class AdminUserViewSet(viewsets.ModelViewSet):
-    """API cho Admin quản lý users - Chỉ superuser được truy cập"""
-    queryset = User.objects.all().order_by('-date_joined')
+    """API cho Admin/Staff quản lý users - Admin thấy tất cả, Staff chỉ thấy user thường"""
     serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated]  # Cho phép cả staff và admin
     filter_backends = [SearchFilter]
     search_fields = ['username', 'email', 'nickname']
     pagination_class = StandardResultsSetPagination
+    
+    def get_queryset(self):
+        """Filter users based on current user role"""
+        user = self.request.user
+        if user.is_superuser:
+            # Admin thấy tất cả users
+            return User.objects.all().order_by('-date_joined')
+        elif user.is_staff:
+            # Staff chỉ thấy các user thường (không phải staff/admin)
+            return User.objects.filter(is_staff=False).order_by('-date_joined')
+        else:
+            # User thường không được truy cập
+            return User.objects.none()
     
     def get_serializer_class(self):
         if self.action == 'create':

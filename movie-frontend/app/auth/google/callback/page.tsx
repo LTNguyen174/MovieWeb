@@ -9,12 +9,16 @@ import { Film } from "lucide-react"
 export default function GoogleCallbackPage() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading")
   const [message, setMessage] = useState("Đang xử lý đăng nhập Google...")
+  const [isProcessing, setIsProcessing] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login } = useAuth()
+  const { login, setUser } = useAuth()
 
   useEffect(() => {
     const handleGoogleCallback = async () => {
+      // Prevent duplicate requests
+      if (isProcessing) return
+      setIsProcessing(true)
       try {
         const code = searchParams.get("code")
         const error = searchParams.get("error")
@@ -42,15 +46,21 @@ export default function GoogleCallbackPage() {
         setMessage("Đăng nhập thành công! Đang chuyển hướng...")
         setStatus("success")
 
-        // Load user data after successful Google login
+        // Google OAuth API returns user info in response.user (username, email, etc.)
+        // JWT token contains role fields (is_staff, is_superuser) but not username
+        // So we use both sources: username from API response, roles from JWT token
         const payload = JSON.parse(atob(tokens.access.split(".")[1]))
         const loggedInUser = {
-          username: payload.username || "Google User",
+          username: tokens.user?.username || "Google User",
           nickname: null,
           isAdmin: payload.is_staff || false,
+          isSuperUser: payload.is_superuser || false,
         }
 
-        // Update auth state (similar to regular login)
+        // Update auth state immediately after successful Google login
+        setUser(loggedInUser)
+        
+        // Redirect to homepage
         setTimeout(() => {
           router.push("/")
         }, 1500)
@@ -64,7 +74,7 @@ export default function GoogleCallbackPage() {
     }
 
     handleGoogleCallback()
-  }, [searchParams, router, login])
+  }, [searchParams, router, login, isProcessing])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">

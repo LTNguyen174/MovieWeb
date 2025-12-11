@@ -268,7 +268,30 @@ export default function ProfilePage() {
                   comment={comment}
                   isOwner={true}
                   index={index}
-                  showReplies={false}
+                  showReplies={true}
+                  currentUsername={user?.username || null}
+                  onReply={async (parentId, content) => {
+                    try {
+                      await commentsAPI.createComment(0, content, parentId) // movieTmdbId=0 for profile replies
+                      const updated = await profileAPI.getMyComments()
+                      setComments(updated)
+                    } catch (e) {
+                      alert("Không thể trả lời bình luận.")
+                    }
+                  }}
+                  onReact={async (id, reaction) => {
+                    try {
+                      if (reaction) {
+                        await commentsAPI.react(id, reaction)
+                      } else {
+                        await commentsAPI.removeReaction(id)
+                      }
+                      const updated = await profileAPI.getMyComments()
+                      setComments(updated)
+                    } catch (e) {
+                      alert("Không thể reaction bình luận.")
+                    }
+                  }}
                   onEdit={async (id) => {
                     const current = comments.find((c: any) => c.id === id)
                     const content = window.prompt("Edit your comment", current?.content || "")

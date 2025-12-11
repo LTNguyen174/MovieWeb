@@ -14,6 +14,7 @@ import {
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { AdminSidebar } from "@/components/admin-sidebar"
+import { useAuth } from "@/hooks/use-auth"
 
 interface AdminUser {
   id: number
@@ -22,6 +23,7 @@ interface AdminUser {
   nickname: string
   is_active: boolean
   is_staff: boolean
+  is_superuser: boolean
   date_joined: string
   last_login: string
   country?: string
@@ -37,6 +39,7 @@ interface WatchHistoryItem {
 }
 
 export default function UserManagementPage() {
+  const { user: currentUser } = useAuth()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -55,6 +58,7 @@ export default function UserManagementPage() {
 
   const [formData, setFormData] = useState({
     is_staff: false,
+    is_superuser: false,
     is_active: true
   })
 
@@ -62,7 +66,8 @@ export default function UserManagementPage() {
     username: "",
     email: "",
     password: "",
-    is_staff: false
+    is_staff: false,
+    is_superuser: false
   })
 
   const [createFormErrors, setCreateFormErrors] = useState({
@@ -178,6 +183,7 @@ export default function UserManagementPage() {
     setSelectedUser(user)
     setFormData({
       is_staff: user.is_staff,
+      is_superuser: user.is_superuser,
       is_active: user.is_active
     })
     setIsEditModalOpen(true)
@@ -222,7 +228,8 @@ export default function UserManagementPage() {
       username: "",
       email: "",
       password: "",
-      is_staff: false
+      is_staff: false,
+      is_superuser: false
     })
     setCreateFormErrors({ username: "", email: "", password: "" })
     setIsCreateModalOpen(true)
@@ -295,6 +302,7 @@ export default function UserManagementPage() {
   }
 
   const getRoleBadge = (user: AdminUser) => {
+    if (user.is_superuser) return <Badge className="bg-purple-600">Admin</Badge>
     if (user.is_staff) return <Badge className="bg-red-600">Staff</Badge>
     return <Badge variant="secondary">User</Badge>
   }
@@ -311,8 +319,12 @@ export default function UserManagementPage() {
       
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8 mt-20">
-          <h1 className="text-3xl font-bold text-white mb-2">Quản lý Users</h1>
-          <p className="text-gray-300">Quản lý danh sách người dùng</p>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            {currentUser?.isSuperUser ? 'Quản lý Users' : 'Danh sách Users'}
+          </h1>
+          <p className="text-gray-300">
+            {currentUser?.isSuperUser ? 'Quản lý danh sách người dùng' : 'Xem danh sách người dùng thường'}
+          </p>
         </div>
 
         {/* Search and Actions */}
@@ -530,10 +542,10 @@ export default function UserManagementPage() {
                         type="radio"
                         id="role_user"
                         name="role"
-                        checked={!isCreateModalOpen ? !formData.is_staff : !createFormData.is_staff}
+                        checked={!isCreateModalOpen ? !formData.is_staff && !formData.is_superuser : !createFormData.is_staff && !createFormData.is_superuser}
                         onChange={() => isCreateModalOpen 
-                          ? setCreateFormData({...createFormData, is_staff: false})
-                          : setFormData({...formData, is_staff: false})
+                          ? setCreateFormData({...createFormData, is_staff: false, is_superuser: false})
+                          : setFormData({...formData, is_staff: false, is_superuser: false})
                         }
                         className="rounded"
                       />
@@ -544,15 +556,31 @@ export default function UserManagementPage() {
                         type="radio"
                         id="role_staff"
                         name="role"
-                        checked={isCreateModalOpen ? createFormData.is_staff : formData.is_staff}
+                        checked={isCreateModalOpen ? createFormData.is_staff && !createFormData.is_superuser : formData.is_staff && !formData.is_superuser}
                         onChange={() => isCreateModalOpen 
-                          ? setCreateFormData({...createFormData, is_staff: true})
-                          : setFormData({...formData, is_staff: true})
+                          ? setCreateFormData({...createFormData, is_staff: true, is_superuser: false})
+                          : setFormData({...formData, is_staff: true, is_superuser: false})
                         }
                         className="rounded"
                       />
                       <Label htmlFor="role_staff" className="text-gray-300">Staff</Label>
                     </div>
+                    {!isCreateModalOpen && (
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          id="role_admin"
+                          name="role"
+                          checked={isCreateModalOpen ? createFormData.is_superuser : formData.is_superuser}
+                          onChange={() => isCreateModalOpen 
+                            ? setCreateFormData({...createFormData, is_staff: true, is_superuser: true})
+                            : setFormData({...formData, is_staff: true, is_superuser: true})
+                          }
+                          className="rounded"
+                        />
+                        <Label htmlFor="role_admin" className="text-gray-300">Admin</Label>
+                      </div>
+                    )}
                   </div>
                 </div>
                 

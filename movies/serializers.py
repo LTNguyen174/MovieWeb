@@ -30,7 +30,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'nickname', 'is_active', 'is_staff', 
+        fields = ('id', 'username', 'email', 'nickname', 'is_active', 'is_staff', 'is_superuser',
                  'date_joined', 'last_login', 'country', 'date_of_birth', 'avatar')
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -38,7 +38,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'is_staff')
+        fields = ('username', 'email', 'password', 'is_staff', 'is_superuser')
     
     def create(self, validated_data):
         password = validated_data.pop('password')
@@ -47,20 +47,42 @@ class UserCreateSerializer(serializers.ModelSerializer):
             email=validated_data['email'],
             password=password,
             is_staff=validated_data.get('is_staff', False),
+            is_superuser=validated_data.get('is_superuser', False),
             is_active=True
         )
         return user
 
 class CommentSerializer(serializers.ModelSerializer):
     """Serializer cho comment management"""
-    user_username = serializers.CharField(source='user.username', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    nickname = serializers.CharField(source='user.nickname', read_only=True)
+    avatar = serializers.CharField(source='user.avatar', read_only=True)
     movie_title = serializers.CharField(source='movie.title', read_only=True)
+    movie_tmdb_id = serializers.IntegerField(source='movie.tmdb_id', read_only=True)
     movie_poster = serializers.CharField(source='movie.poster', read_only=True)
+    parent_username = serializers.CharField(source='parent.user.username', read_only=True, allow_null=True)
+    parent_nickname = serializers.CharField(source='parent.user.nickname', read_only=True, allow_null=True)
+    likes_count = serializers.SerializerMethodField()
+    dislikes_count = serializers.SerializerMethodField()
+    user_reaction = serializers.SerializerMethodField()
     
     class Meta:
         model = Comment
         fields = '__all__'
         read_only_fields = ('user', 'movie', 'created_at')
+    
+    def get_likes_count(self, obj):
+        return obj.reactions.filter(reaction='like').count()
+    
+    def get_dislikes_count(self, obj):
+        return obj.reactions.filter(reaction='dislike').count()
+    
+    def get_user_reaction(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            reaction = obj.reactions.filter(user=request.user).first()
+            return reaction.reaction if reaction else None
+        return None
 
 class AdminCommentSerializer(serializers.ModelSerializer):
     """Serializer cho admin comment management với đầy đủ thông tin"""
