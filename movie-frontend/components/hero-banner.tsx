@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
-import { Play, Plus, Info } from "lucide-react"
+import { Play, Star, Plus, Info } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { categoriesAPI, moviesAPI, type Movie } from "@/lib/api"
@@ -15,6 +15,7 @@ interface HeroBannerProps {
     poster: string
     release_year: number
     categories: { id: number; name: string }[]
+    average_rating?: number
   }
 }
 
@@ -40,6 +41,7 @@ export function HeroBanner({ movie }: HeroBannerProps) {
     poster: string
     release_year: number
     categories: { id: number; name: string }[]
+    average_rating?: number
   }>>([])
   const [index, setIndex] = useState(0)
 
@@ -69,6 +71,7 @@ export function HeroBanner({ movie }: HeroBannerProps) {
           poster: string
           release_year: number
           categories: { id: number; name: string }[]
+          average_rating?: number
         }> = []
 
         for (const m of sorted) {
@@ -87,6 +90,7 @@ export function HeroBanner({ movie }: HeroBannerProps) {
                 poster: m.poster,
                 release_year: m.release_year,
                 categories: Array.isArray(m.categories) ? m.categories : [],
+                average_rating: (m as any).average_rating,
               })
               if (items.length >= 5) break
             } else {
@@ -228,10 +232,12 @@ export function HeroBanner({ movie }: HeroBannerProps) {
                 Watch Now
               </Button>
             </Link>
-            <Button size="lg" variant="secondary" className="rounded-full gap-2 text-base">
-              <Plus className="w-5 h-5" />
-              My List
-            </Button>
+            {(displayMovie as any).average_rating != null && (
+              <Button size="lg" variant="secondary" className="rounded-full gap-2 text-base">
+                <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                {(displayMovie as any).average_rating?.toFixed(1)}
+              </Button>
+            )}
           </motion.div>
         </motion.div>
         {/* Right-side Poster Image */}

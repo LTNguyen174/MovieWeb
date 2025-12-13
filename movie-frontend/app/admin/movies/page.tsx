@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { adminAPI } from "@/lib/api"
+import { adminAPI, countriesAPI } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -133,21 +133,19 @@ export default function MovieManagementPage() {
 
   const fetchCountries = async () => {
     try {
-      // For now, we'll create a simple list. In a real app, you'd have a countries endpoint
-      setCountries([
-        { id: 1, name: 'Mỹ' },
-        { id: 2, name: 'Việt Nam' },
-        { id: 3, name: 'Nhật Bản' },
-        { id: 4, name: 'Hàn Quốc' },
-        { id: 5, name: 'Trung Quốc' },
-        { id: 6, name: 'Thái Lan' },
-        { id: 7, name: 'Anh' },
-        { id: 8, name: 'Pháp' },
-        { id: 9, name: 'Đức' },
-        { id: 10, name: 'Úc' }
-      ])
+      const response = await countriesAPI.getCountries()
+      setCountries(response)
     } catch (error) {
       console.error('Error fetching countries:', error)
+      // Fallback to hardcoded list if API fails
+      setCountries([
+        { id: 1, name: 'United States of America' },
+        { id: 2, name: 'India' },
+        { id: 3, name: 'Mexico' },
+        { id: 4, name: 'Japan' },
+        { id: 5, name: 'South Korea' },
+        { id: 90, name: 'Việt Nam' }
+      ])
     }
   }
 

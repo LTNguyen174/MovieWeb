@@ -7,6 +7,12 @@ class IsOwnerOrReadOnly(BasePermission):
     Những người khác (kể cả khách) chỉ được xem (Read-only).
     """
 
+    def has_permission(self, request, view):
+        # Cho phép user đã xác thực thực hiện các action
+        if request.method in SAFE_METHODS:
+            return True
+        return request.user and request.user.is_authenticated
+
     def has_object_permission(self, request, view, obj):
         # SAFE_METHODS là ('GET', 'HEAD', 'OPTIONS') - tức là các request CHỈ ĐỌC
         if request.method in SAFE_METHODS:

@@ -3,11 +3,11 @@ import { useState, useEffect } from "react"
 import { ChevronDown, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { countriesAPI } from "@/lib/api"
 
 interface Country {
   id: number
   name: string
-  code: string
 }
 
 interface CountrySelectProps {
@@ -20,27 +20,32 @@ export function CountrySelect({ selectedCountry, onSelect }: CountrySelectProps)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Danh sách các quốc gia phổ biến
-    const popularCountries: Country[] = [
-      { id: 1, name: "United States", code: "US" },
-      { id: 2, name: "United Kingdom", code: "UK" },
-      { id: 3, name: "France", code: "FR" },
-      { id: 4, name: "Germany", code: "DE" },
-      { id: 5, name: "Italy", code: "IT" },
-      { id: 6, name: "Spain", code: "ES" },
-      { id: 7, name: "Japan", code: "JP" },
-      { id: 8, name: "South Korea", code: "KR" },
-      { id: 9, name: "China", code: "CN" },
-      { id: 10, name: "India", code: "IN" },
-      { id: 11, name: "Canada", code: "CA" },
-      { id: 12, name: "Australia", code: "AU" },
-      { id: 13, name: "Brazil", code: "BR" },
-      { id: 14, name: "Mexico", code: "MX" },
-      { id: 15, name: "Russia", code: "RU" },
-    ]
-    
-    setCountries(popularCountries)
-    setLoading(false)
+    const fetchCountries = async () => {
+      try {
+        console.log('DEBUG: Starting to fetch countries...')
+        const countries = await countriesAPI.getCountries()
+        console.log('DEBUG: Fetched countries:', countries)
+        console.log('DEBUG: Number of countries:', countries.length)
+        setCountries(countries)
+      } catch (error) {
+        console.error('Error fetching countries:', error)
+        console.log('DEBUG: Using fallback countries list')
+        // Fallback to hardcoded list if API fails
+        setCountries([
+          { id: 1, name: "United States of America" },
+          { id: 2, name: "India" },
+          { id: 3, name: "Mexico" },
+          { id: 4, name: "Japan" },
+          { id: 5, name: "South Korea" },
+          { id: 90, name: "Việt Nam" }
+        ])
+      } finally {
+        setLoading(false)
+        console.log('DEBUG: Loading set to false, countries length:', countries.length)
+      }
+    }
+
+    fetchCountries()
   }, [])
 
   return (

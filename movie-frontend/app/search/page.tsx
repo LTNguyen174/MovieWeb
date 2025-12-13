@@ -101,11 +101,44 @@ export default function SearchPage() {
     )
   }
 
-  const handleSearch = async () => {
+  const handleCheckboxSearch = async () => {
+    setLoading(true)
+    setHasSearched(true)
+    setExtractedKeywords(null) // Đảm bảo reset extractedKeywords khi tìm kiếm bằng checkbox
+    
+    try {
+      const params: any = {}
+      
+      // Only use manually selected filters - ignore searchQuery
+      if (selectedCategories.length > 0) {
+        params.categories = selectedCategories.join(',')
+      }
+      
+      if (selectedYear) {
+        params.release_year = selectedYear
+      }
+      
+      if (selectedCountry) {
+        params.country = selectedCountry
+      }
+      
+      console.log('Checkbox search params:', params)
+      const response = await moviesAPI.getMovies(params)
+      console.log('Checkbox search response:', response)
+      setMovies(response.results || response || [])
+    } catch (err) {
+      console.error("Checkbox search failed:", err)
+      setMovies([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleKeywordSearch = async () => {
     setLoading(true)
     setHasSearched(true)
     
-    // Reset all filters before applying new search
+    // Reset all filters for keyword search
     setSelectedCategories([])
     setSelectedYear('')
     setSelectedCountry('')
@@ -117,7 +150,7 @@ export default function SearchPage() {
       if (searchQuery.trim()) {
         // Extract keywords first
         const keywords = await extractKeywords(searchQuery.trim())
-        console.log('Extracted keywords for search:', keywords)
+        console.log('Extracted keywords for keyword search:', keywords)
         
         // Use extracted keywords based on query type
         if (keywords.query_type === 'structured') {
@@ -288,18 +321,26 @@ export default function SearchPage() {
         }
       }
       
-      // Note: We don't need to add manual filters here since we reset them at the start
-      // Only use the filters that were set by keyword extraction
-      
-      console.log('Search params:', params)
+      console.log('Keyword search params:', params)
       const response = await moviesAPI.getMovies(params)
-      console.log('Search response:', response)
+      console.log('Keyword search response:', response)
       setMovies(response.results || response || [])
     } catch (err) {
-      console.error("Search failed:", err)
+      console.error("Keyword search failed:", err)
       setMovies([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSearch = async () => {
+    // Decide which search to use based on whether user has typed a query
+    if (searchQuery.trim()) {
+      // User typed something - use keyword search
+      await handleKeywordSearch()
+    } else {
+      // No query typed - use checkbox search
+      await handleCheckboxSearch()
     }
   }
 
@@ -535,8 +576,8 @@ export default function SearchPage() {
               </h2>
               {(searchQuery || selectedCategories.length > 0 || selectedYear || selectedCountry) && (
                 <div className="flex flex-wrap gap-2">
-                  {extractedKeywords && (extractedKeywords.keywords.movie_title || extractedKeywords.keywords.genres.length > 0 || extractedKeywords.keywords.country || extractedKeywords.keywords.year) ? (
-                    // Show extracted keywords only if meaningful keywords were found
+                  {searchQuery && extractedKeywords && (extractedKeywords.keywords.movie_title || extractedKeywords.keywords.genres.length > 0 || extractedKeywords.keywords.country || extractedKeywords.keywords.year) ? (
+                    // Show extracted keywords only if meaningful keywords were found AND there's a search query
                     <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
                       ✓ Đã tự động lọc theo từ khóa
                     </span>

@@ -65,6 +65,7 @@ class CommentSerializer(serializers.ModelSerializer):
     likes_count = serializers.SerializerMethodField()
     dislikes_count = serializers.SerializerMethodField()
     user_reaction = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField()
     
     class Meta:
         model = Comment
@@ -83,6 +84,15 @@ class CommentSerializer(serializers.ModelSerializer):
             reaction = obj.reactions.filter(user=request.user).first()
             return reaction.reaction if reaction else None
         return None
+    
+    def get_replies(self, obj):
+        """Get all replies for this comment"""
+        include_replies = self.context.get('include_replies', True)
+        if not include_replies:
+            return []
+        
+        replies = obj.replies.all().order_by('created_at')
+        return CommentSerializer(replies, many=True, context=self.context).data
 
 class AdminCommentSerializer(serializers.ModelSerializer):
     """Serializer cho admin comment management với đầy đủ thông tin"""
@@ -194,8 +204,7 @@ class CommentCreateSerializer(serializers.ModelSerializer):
             parent_id=parent_id,
             **validated_data
         )
-        # Return data using CommentSerializer for full response
-        return CommentSerializer(comment).data
+        return comment
 
 class CommentUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -223,8 +232,31 @@ class AdminMovieSerializer(serializers.ModelSerializer):
     country = serializers.PrimaryKeyRelatedField(queryset=Country.objects.all(), allow_null=True)
     actors = serializers.PrimaryKeyRelatedField(queryset=Actor.objects.all(), many=True, required=False)
 
+    def validate(self, attrs):
+        # Handle country field - accept both ID and name
+        country_value = attrs.get('country')
+        if country_value:
+            if isinstance(country_value, str):
+                # Try to find country by name
+                try:
+                    country = Country.objects.get(name__iexact=country_value)
+                    attrs['country'] = country
+                except Country.DoesNotExist:
+                    raise serializers.ValidationError(f"Country '{country_value}' not found")
+            elif isinstance(country_value, int):
+                # ID provided, validate it exists
+                try:
+                    country = Country.objects.get(id=country_value)
+                    attrs['country'] = country
+                except Country.DoesNotExist:
+                    raise serializers.ValidationError(f"Country with ID {country_value} not found")
+        
+        return super().validate(attrs)
+
+    def create(self, validated_data):
+        return super().create(validated_data)
+    
     def update(self, instance, validated_data):
-        print(f"DEBUG: Updating movie {instance.id} with data: {validated_data}")
         return super().update(instance, validated_data)
 
     class Meta:

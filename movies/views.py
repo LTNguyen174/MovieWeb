@@ -425,6 +425,14 @@ class CommentViewSet(viewsets.ModelViewSet):
         if movie_tmdb_id and movie_tmdb_id.isdigit():
             # Filter by tmdb_id instead of movie_id
             queryset = queryset.filter(movie__tmdb_id=int(movie_tmdb_id))
+        
+        # For list action, only return parent comments (replies will be nested)
+        if self.action == 'list':
+            queryset = queryset.filter(parent__isnull=True).order_by('-created_at')
+        else:
+            # For retrieve, update, delete actions, allow all comments
+            queryset = queryset.order_by('-created_at')
+        
         return queryset
 
     def perform_create(self, serializer):

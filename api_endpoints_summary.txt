@@ -1,7 +1,5 @@
 # REST API endpoints (extracted from project)
 
-I inspected `movie_project/urls.py`, `movies/urls.py`, `movies/views.py`, `movies/serializers.py`, `movies/tmdb_service.py`, and `users/urls.py`, `users/views.py`, `users/serializers.py` and summarized every REST endpoint found. Notes/assumptions are listed at the end.
-
 ---
 
 ### Conventions used below
@@ -381,23 +379,82 @@ All admin endpoints require the user to be an admin (`IsAdminUser`).
 
 ---
 
-## Other notes, uncertainties, and small findings
+## Admin CRUD endpoints (prefix: /api/admin/)
 
-- `EpisodeViewSet` is implemented in `movies/views.py` but not registered in the `DefaultRouter()` or `admin_patterns` — so no route is actually exposed for episodes. The docstring suggests `GET/POST /api/admin/episodes/` and `GET/PUT/DELETE /api/admin/episodes/<id>/`, but the router or explicit path is not present. If you intend to expose episodes, you need to add a router registration or an admin path in `movies/urls.py`.
-- `CommentViewSet.permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]`: as written, combining `IsAuthenticated` with `IsOwnerOrReadOnly` means anonymous users likely cannot read comments (because `IsAuthenticated` blocks them). If public comment listing is desired, consider `permission_classes = [IsOwnerOrReadOnly]` or `permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]`.
-- For `/api/comments/` create: the create serializer (`CommentCreateSerializer`) has `movie_tmdb_id` write-only and `content`. The view's `perform_create` finds the `Movie` from `movie_tmdb_id` and saves the `user`. Clients should POST `{ "movie_tmdb_id": <tmdb_id>, "content": "..." }`. The returned JSON may follow the create serializer (which is minimal) or the read serializer depending on the view's behavior; in practice, clients typically expect to receive the created comment in a read-friendly shape (`id`, `username`, `content`, `created_at`).
-- TMDB import behavior: `/api/admin/import-tmdb/` will call `import_movie_from_tmdb` (in `movies/tmdb_service.py`) which creates `Movie`, `Category`, `Actor`, `Country` objects and returns `(movie, created)`. If a movie with that `tmdb_id` exists, the view returns `409 Conflict`.
-- Movie lookup uses `tmdb_id` rather than DB PK. Use e.g. `/api/movies/12345/` for TMDB id 12345.
+> These are registered in the router for full CRUD operations on models.
+> All admin endpoints require the user to be an admin (`IsAdminUser`).
+
+### GET/POST /api/admin/movies/
+- Method: GET/POST
+- Auth: Admin only
+- Description: List all movies (GET) or create new movie (POST). Uses `AdminMovieSerializer`.
+- GET response: Full movie data with all fields.
+- POST request: Full movie object data.
+
+### GET/PUT/DELETE /api/admin/movies/{pk}/
+- Method: GET/PUT/DELETE
+- Auth: Admin only
+- Description: Retrieve, update, or delete a specific movie.
+
+### GET/POST /api/admin/categories/
+- Method: GET/POST
+- Auth: Admin only
+- Description: List all categories (GET) or create new category (POST).
+
+### GET/PUT/DELETE /api/admin/categories/{pk}/
+- Method: GET/PUT/DELETE
+- Auth: Admin only
+- Description: Retrieve, update, or delete a specific category.
+
+### GET/POST /api/admin/actors/
+- Method: GET/POST
+- Auth: Admin only
+- Description: List all actors (GET) or create new actor (POST).
+
+### GET/PUT/DELETE /api/admin/actors/{pk}/
+- Method: GET/PUT/DELETE
+- Auth: Admin only
+- Description: Retrieve, update, or delete a specific actor.
+
+### GET/POST /api/admin/countries/
+- Method: GET/POST
+- Auth: Admin only
+- Description: List all countries (GET) or create new country (POST).
+
+### GET/PUT/DELETE /api/admin/countries/{pk}/
+- Method: GET/PUT/DELETE
+- Auth: Admin only
+- Description: Retrieve, update, or delete a specific country.
+
+### GET/POST /api/admin/users/
+- Method: GET/POST
+- Auth: Admin only
+- Description: List all users (GET) or create new user (POST).
+
+### GET/PUT/DELETE /api/admin/users/{pk}/
+- Method: GET/PUT/DELETE
+- Auth: Admin only
+- Description: Retrieve, update, or delete a specific user.
+
+### GET/POST /api/admin/comments/
+- Method: GET/POST
+- Auth: Admin only
+- Description: List all comments (GET) or create new comment (POST).
+
+### GET/PUT/DELETE /api/admin/comments/{pk}/
+- Method: GET/PUT/DELETE
+- Auth: Admin only
+- Description: Retrieve, update, or delete a specific comment.
+
+### GET/POST /api/admin/episodes/
+- Method: GET/POST
+- Auth: Admin only
+- Description: List all episodes (GET) or create new episode (POST). Uses `EpisodeSerializer`.
+
+### GET/PUT/DELETE /api/admin/episodes/{pk}/
+- Method: GET/PUT/DELETE
+- Auth: Admin only
+- Description: Retrieve, update, or delete a specific episode.
 
 ---
 
-## Quick follow-ups I can do (pick any)
-- Add explicit example curl/powershell commands for each endpoint (with JWT header usage).
-- Add missing routes for `EpisodeViewSet` (admin-only) and a small unit test verifying route existence.
-- Adjust `CommentViewSet` permissions if you want comments readable by anonymous users.
-
----
-
-Done: I read the relevant files, performed a quick repo scan for URL patterns, and summarized endpoints. If you want, I can now:
-- produce copy-paste-ready curl/PowerShell examples (with JSON and Authorization header usage),
-- or open a PR to add the missing episode routes or tweak comment permissions. Which would you like next?
