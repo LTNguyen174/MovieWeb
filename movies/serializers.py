@@ -142,7 +142,7 @@ class MovieSerializer(serializers.ModelSerializer):
 
     def get_is_favorite(self, obj):
         request = self.context.get('request')
-        if request and request.user and request.user.is_authenticated:
+        if request and request.user.is_authenticated:
             from .models import Favorite
             return Favorite.objects.filter(user=request.user, movie=obj).exists()
         return False
@@ -159,7 +159,7 @@ class MovieDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Movie
         fields = ('tmdb_id', 'title', 'description', 'poster', 'release_year', 
-                  'categories', 'country', 'average_rating', 'user_rating', 'is_favorite', 'trailer_url', 'views')
+                  'categories', 'country', 'average_rating', 'user_rating', 'is_favorite', 'trailer_url', 'video_url', 'views')
 
     def get_average_rating(self, obj):
         # 'ratings' là related_name từ model Rating

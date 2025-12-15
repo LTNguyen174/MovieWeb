@@ -27,6 +27,7 @@ interface Movie {
   duration: number
   status: string
   trailer_url: string
+  video_url: string
   views: number
   created_at: string
   updated_at: string
@@ -82,6 +83,7 @@ export default function MovieManagementPage() {
     duration: "",
     status: "",
     trailer_url: "",
+    video_url: "",
     categories: [] as number[],
     country: "",
     actors: [] as number[]
@@ -212,6 +214,7 @@ export default function MovieManagementPage() {
         duration: "",
         status: "",
         trailer_url: "",
+        video_url: "",
         categories: [],
         country: "",
         actors: []
@@ -242,6 +245,7 @@ export default function MovieManagementPage() {
       duration: movie.duration?.toString() || "",
       status: movie.status || "",
       trailer_url: movie.trailer_url || "",
+      video_url: movie.video_url || "",
       categories: movie.categories?.map(c => c.id) || [],
       country: movie.country?.id?.toString() || "",
       actors: movie.actors?.map(a => a.id) || []
@@ -561,6 +565,17 @@ export default function MovieManagementPage() {
                     id="trailer_url"
                     value={formData.trailer_url}
                     onChange={(e) => setFormData({...formData, trailer_url: e.target.value})}
+                    className="bg-gray-700 border-gray-600 text-white"
+                    placeholder="https://..."
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="video_url" className="text-gray-300">Movie URL</Label>
+                  <Input
+                    id="video_url"
+                    value={formData.video_url}
+                    onChange={(e) => setFormData({...formData, video_url: e.target.value})}
                     className="bg-gray-700 border-gray-600 text-white"
                     placeholder="https://..."
                   />

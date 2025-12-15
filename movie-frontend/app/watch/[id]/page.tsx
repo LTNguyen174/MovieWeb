@@ -13,6 +13,8 @@ import { RatingStars } from "@/components/rating-stars"
 import { CommentInputBox } from "@/components/comment-input-box"
 import { CommentItem } from "@/components/comment-item"
 import { RecommendationCarousel } from "@/components/recommendation-carousel"
+import { ShareModal, useShareModal } from "@/components/share-modal"
+import { VideoPlayer } from "@/components/video-player"
 import { moviesAPI, commentsAPI, type MovieDetail, type Comment } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -44,6 +46,7 @@ export default function WatchPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
+  const { isOpen: isShareOpen, openModal: openShareModal, closeModal: closeShareModal } = useShareModal()
   const movieId = Number(params.id)
   const [userRating, setUserRating] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
@@ -174,17 +177,33 @@ export default function WatchPage() {
             Quay lại
           </Button>
 
-          {/* Video Box */}
-          <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-2xl">
-            {embedUrl ? (
+          {/* Cloud Video Player - Luôn ở trên cùng nếu có video_url */}
+          {movie.video_url && (
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-2xl">
+              <VideoPlayer 
+                src={movie.video_url}
+                poster={movie.poster}
+                className="w-full h-full"
+              />
+            </div>
+          )}
+
+          {/* Nếu không có video_url thì hiển thị trailer ở trên */}
+          {!movie.video_url && embedUrl && (
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-2xl">
               <iframe
                 src={embedUrl}
                 className="absolute inset-0 w-full h-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
-                title={movie.title}
+                title={`${movie.title} - Trailer`}
               />
-            ) : (
+            </div>
+          )}
+
+          {/* Nếu không có cả hai */}
+          {!movie.video_url && !embedUrl && (
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-2xl">
               <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
                 <div className="text-center px-4">
                   <div className="text-2xl font-bold mb-4 text-red-500">Không có trailer</div>
@@ -195,8 +214,8 @@ export default function WatchPage() {
                   </Button>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
         </div>
       </div>
@@ -300,7 +319,12 @@ export default function WatchPage() {
               >
                 <Heart className={`w-5 h-5 ${isLiked ? "fill-primary text-primary" : ""}`} />
               </Button>
-              <Button size="lg" variant="outline" className="rounded-full bg-transparent">
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="rounded-full bg-transparent"
+                onClick={openShareModal}
+              >
                 <Share2 className="w-5 h-5" />
               </Button>
             </div>
@@ -324,6 +348,29 @@ export default function WatchPage() {
             </div>
           </motion.div>
         </div>
+
+        {/* Trailer Section - Chỉ hiển thị khi có cả video_url và trailer_url */}
+        {movie.video_url && embedUrl && (
+          <motion.section 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            transition={{ delay: 0.3 }} 
+            className="mt-16"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">Trailer</h2>
+            </div>
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-2xl">
+              <iframe
+                src={embedUrl}
+                className="absolute inset-0 w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={`${movie.title} - Trailer`}
+              />
+            </div>
+          </motion.section>
+        )}
 
         {/* Comments Section */}
         <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="mt-16">
@@ -412,6 +459,16 @@ export default function WatchPage() {
       </main>
 
       <Footer />
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={closeShareModal}
+        url={window.location.href}
+        title={movie ? `${movie.title} (${movie.release_year}) - MovieWeb` : undefined}
+        description={movie ? `Xem phim ${movie.title} (${movie.release_year}) full HD miễn phí tại MovieWeb - Thư viện phim online chất lượng cao` : undefined}
+        poster={movie?.poster}
+      />
     </div>
   )
 }

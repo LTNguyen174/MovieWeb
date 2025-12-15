@@ -115,6 +115,17 @@ class KeywordExtractor:
             any(indicator in query for indicator in ['thể loại', 'quốc gia', 'năm', 'năm sản xuất', 'type', 'country', 'year'])):
             return 'structured'
         
+        # Check for simple country/year patterns - treat as structured
+        country_year_patterns = [
+            r'phim\s+(mỹ|nhật bản|hàn quốc|trung quốc|việt nam|anh|pháp|đức|ý|tây ban nha|canada|úc|brasil|mexico|nga|phần lan)',
+            r'phim\s+(năm\s+)?(19[0-9]{2}|20[0-3][0-9])',
+            r'(19[0-9]{2}|20[0-3][0-9])\s*$'
+        ]
+        
+        for pattern in country_year_patterns:
+            if re.search(pattern, query):
+                return 'structured'
+        
         # Check for title search (short queries with no Vietnamese filter words)
         words = query.split()
         if (len(query.strip()) <= 20 and  # Short query
@@ -130,7 +141,29 @@ class KeywordExtractor:
     def _process_structured_query(self, query: str, result: dict):
         """Process structured queries like 'Phim hoạt hình, Nhật bản, năm 2025'"""
         
-        # Split by commas and process each part
+        # Special patterns for "Phim [quốc gia]" and "Phim năm [năm]"
+        country_patterns = [
+            r'phim\s+(mỹ|nhật bản|hàn quốc|trung quốc|việt nam|anh|pháp|đức|ý|tây ban nha|canada|úc|brasil|mexico|nga|phần lan)',
+            r'phim\s+(năm\s+)?(19[0-9]{2}|20[0-3][0-9])'
+        ]
+        
+        # Check for "Phim [quốc gia]" pattern
+        country_match = re.search(country_patterns[0], query)
+        if country_match:
+            country_name = country_match.group(1)
+            # Map Vietnamese country name to English
+            for country_vn, country_en_list in self.country_mappings.items():
+                if country_name in country_vn or country_vn in country_name:
+                    result['country'] = country_en_list[0]
+                    break
+        
+        # Check for "Phim năm [năm]" or just "Phim [năm]" pattern
+        year_match = re.search(country_patterns[1], query)
+        if year_match:
+            year_str = year_match.group(2)
+            result['year'] = int(year_str)
+        
+        # Split by commas and process each part for additional filters
         parts = [part.strip() for part in query.split(',')]
         
         for part in parts:
@@ -142,19 +175,21 @@ class KeywordExtractor:
                             result['genres'].append(genre)
                         break
             
-            # Extract country
-            for country_vn, country_en_list in self.country_mappings.items():
-                for country_en in country_en_list:
-                    if country_en in part or country_vn in part:
-                        result['country'] = country_en_list[0]
+            # Extract country (if not already found)
+            if not result['country']:
+                for country_vn, country_en_list in self.country_mappings.items():
+                    for country_en in country_en_list:
+                        if country_en in part or country_vn in part:
+                            result['country'] = country_en_list[0]
+                            break
+                    if result['country']:
                         break
-                if result['country']:
-                    break
             
-            # Extract year
-            year_matches = re.findall(r'\b(19[0-9]{2}|20[0-3][0-9])\b', part)
-            if year_matches:
-                result['year'] = int(year_matches[0])
+            # Extract year (if not already found)
+            if not result['year']:
+                year_matches = re.findall(r'\b(19[0-9]{2}|20[0-3][0-9])\b', part)
+                if year_matches:
+                    result['year'] = int(year_matches[0])
         
         # For structured queries, don't extract movie title
         result['movie_title'] = ''

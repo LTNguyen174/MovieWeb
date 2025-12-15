@@ -13,12 +13,38 @@ import { RatingStars } from "@/components/rating-stars"
 import { CommentInputBox } from "@/components/comment-input-box"
 import { CommentItem } from "@/components/comment-item"
 import { RecommendationCarousel } from "@/components/recommendation-carousel"
+import { ShareModal, useShareModal } from "@/components/share-modal"
 import { moviesAPI, commentsAPI, type MovieDetail, type Comment } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
+
+// Hàm convert YouTube URL sang embed URL
+function getYouTubeEmbedUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+
+  // Nếu đã là embed URL
+  if (url.includes("youtube.com/embed/")) {
+    return url
+  }
+
+  // Nếu là watch URL: https://www.youtube.com/watch?v=VIDEO_ID
+  const watchMatch = url.match(/[?&]v=([^&]+)/)
+  if (watchMatch) {
+    return `https://www.youtube.com/embed/${watchMatch[1]}?autoplay=1&rel=0`
+  }
+
+  // Nếu là short URL: https://youtu.be/VIDEO_ID
+  const shortMatch = url.match(/youtu\.be\/([^?]+)/)
+  if (shortMatch) {
+    return `https://www.youtube.com/embed/${shortMatch[1]}?autoplay=1&rel=0`
+  }
+
+  return null
+}
 
 export default function MovieDetailPage() {
   const params = useParams()
   const { user } = useAuth()
+  const { isOpen: isShareOpen, openModal: openShareModal, closeModal: closeShareModal } = useShareModal()
   const movieId = Number(params.id)
   const [userRating, setUserRating] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
@@ -67,6 +93,8 @@ export default function MovieDetailPage() {
 
     fetchMovieData()
   }, [movieId])
+
+  const embedUrl = movie ? getYouTubeEmbedUrl(movie.trailer_url) : null
 
   if (loading) {
     return (
@@ -201,7 +229,12 @@ export default function MovieDetailPage() {
               >
                 <Heart className={`w-5 h-5 ${isLiked ? "fill-primary text-primary" : ""}`} />
               </Button>
-              <Button size="lg" variant="outline" className="rounded-full bg-transparent">
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="rounded-full bg-transparent"
+                onClick={openShareModal}
+              >
                 <Share2 className="w-5 h-5" />
               </Button>
             </div>
@@ -225,6 +258,29 @@ export default function MovieDetailPage() {
             </div>
           </motion.div>
         </div>
+
+        {/* Trailer Section */}
+        {embedUrl && (
+          <motion.section 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            transition={{ delay: 0.3 }} 
+            className="mt-16"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">Trailer</h2>
+            </div>
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-2xl">
+              <iframe
+                src={embedUrl}
+                className="absolute inset-0 w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={`${movie.title} - Trailer`}
+              />
+            </div>
+          </motion.section>
+        )}
 
         {/* Comments Section */}
         <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="mt-16">
@@ -326,6 +382,16 @@ export default function MovieDetailPage() {
       </main>
 
       <Footer />
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={closeShareModal}
+        url={window.location.href}
+        title={movie ? `${movie.title} (${movie.release_year}) - MovieWeb` : undefined}
+        description={movie ? `Xem phim ${movie.title} (${movie.release_year}) miễn phí tại MovieWeb - Thư viện phim online chất lượng cao` : undefined}
+        poster={movie?.poster}
+      />
     </div>
   )
 }

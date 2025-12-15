@@ -75,6 +75,7 @@ class Movie(models.Model):
     duration = models.IntegerField(null=True, blank=True, help_text="Thời lượng tính bằng phút")
     status = models.CharField(max_length=50, null=True, blank=True, help_text="Vd: Đang chiếu, Hoàn thành")
     trailer_url = models.URLField(max_length=500, null=True, blank=True)
+    video_url = models.URLField(max_length=1000, null=True, blank=True, help_text="Link video từ cloud cho phát trực tiếp")
 
     # Thông tin theo dõi
     views = models.PositiveIntegerField(default=0)

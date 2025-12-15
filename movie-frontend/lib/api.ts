@@ -136,6 +136,7 @@ export interface MovieDetail extends Movie {
   user_rating?: number | null
   is_favorite?: boolean
   trailer_url?: string | null
+  video_url?: string | null
   views?: number
 }
 
