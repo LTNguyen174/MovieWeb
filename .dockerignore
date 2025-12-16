@@ -13,3 +13,5 @@ __pycache__/
 
 # Bỏ qua các file môi trường local (để bảo mật)
 .env
+
+movie_embeddings.npz
