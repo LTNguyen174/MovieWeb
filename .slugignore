@@ -1,0 +1,15 @@
+# Bỏ qua Frontend (Đây là cái quan trọng nhất để fix timeout)
+movie-frontend/
+
+# Bỏ qua các file rác của Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Bỏ qua file Git (không cần thiết khi build)
+.git/
+.gitignore
+
+# Bỏ qua các file môi trường local (để bảo mật)
+.env
