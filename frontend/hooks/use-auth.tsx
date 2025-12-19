@@ -116,8 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (username: string, email: string, password: string) => {
     await authAPI.register(username, email, password)
-    // Auto login after register
-    await login(username, password)
+    // Không tự động đăng nhập sau khi đăng ký
   }
 
   const googleLogin = () => {

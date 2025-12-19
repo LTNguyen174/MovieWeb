@@ -264,7 +264,7 @@ class MovieViewSet(viewsets.ReadOnlyModelViewSet):
             tmdb_data = response.json()
             
             # Lấy danh sách tmdb_id từ kết quả TMDB
-            tmdb_results = tmdb_data.get('results', [])[:limit]
+            tmdb_results = tmdb_data.get('results', [])[:limit] 
             
             # Import các phim vào database nếu chưa có
             movies = []

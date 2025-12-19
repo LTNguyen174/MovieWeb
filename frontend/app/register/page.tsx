@@ -36,7 +36,7 @@ export default function RegisterPage() {
     setIsLoading(true)
     try {
       await register(username, email, password)
-      router.push("/")
+      router.push("/login")
     } catch (err) {
       setError("Đăng ký thất bại. Vui lòng thử lại với thông tin khác.")
     } finally {
