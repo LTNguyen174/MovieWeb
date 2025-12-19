@@ -3,8 +3,8 @@
 
 Hệ thống backend API phim nhẹ (Django) với frontend Next.js. Kho chứa này bao gồm hai phần chính:
 
-- `movie_project/` - Backend Django (REST API, embeddings, tích hợp OpenAI).
-- `movie-frontend/` - Frontend Next.js (React + TypeScript).
+- `backend/` - Backend Django (REST API, embeddings, tích hợp OpenAI).
+- `frontend/` - Frontend Next.js (React + TypeScript).
 
 ## Điều kiện tiên quyết
 
@@ -28,11 +28,11 @@ python -m venv .venv
 
 ```powershell
 pip install -U pip
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
 
-3. Tạo file `.env` trong thư mục gốc dự án (cùng thư mục với `manage.py`) và thiết lập các biến môi trường cần thiết. Ví dụ `.env`:
+3. Tạo file `.env` trong thư mục `backend/` và thiết lập các biến môi trường cần thiết. Ví dụ `.env`:
 
 ```
 SECRET_KEY=your-django-secret-key
@@ -48,6 +48,7 @@ OPENAI_API_KEY=your_openai_api_key   # tùy chọn nhưng cần thiết cho tín
 4. Áp dụng migrations và tạo superuser
 
 ```powershell
+cd backend
 python manage.py migrate
 python manage.py createsuperuser
 ```
@@ -55,6 +56,7 @@ python manage.py createsuperuser
 6. Chạy máy chủ phát triển
 
 ```powershell
+cd backend
 python manage.py runserver
 ```
 
@@ -62,23 +64,23 @@ Mặc định API sẽ có sẵn tại `http://127.0.0.1:8000`.
 
 ## Frontend (Next.js)
 
-Frontend nằm trong thư mục `movie-frontend/` và sử dụng `pnpm` (nhưng cũng hoạt động với `npm`).
+Frontend nằm trong thư mục `frontend/` và sử dụng `pnpm` (nhưng cũng hoạt động với `npm`).
 
 Từ thư mục gốc kho chứa:
 
 ```powershell
-cd movie-frontend
+cd frontend
 pnpm install    # hoặc `npm install`
 pnpm dev        # hoặc `npm run dev`
 
 # Mở http://localhost:3000
 ```
 
-Đảm bảo backend đang chạy (CORS được bật cho `http://localhost:3000` trong `movie_project/settings.py`).
+Đảm bảo backend đang chạy (CORS được bật cho `http://localhost:3000` trong `backend/movie_project/settings.py`).
 
 ## Ghi chú môi trường & cấu hình
 
-- `movie_project/settings.py` tải file `.env` sử dụng `python-dotenv`.
+- `backend/movie_project/settings.py` tải file `.env` sử dụng `python-dotenv`.
 - Các biến môi trường bắt buộc: `SECRET_KEY`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `TMDB_API_KEY`.
 - Tùy chọn: `OPENAI_API_KEY` cho tính năng OpenAI.
 
@@ -88,6 +90,7 @@ pnpm dev        # hoặc `npm run dev`
 Chạy tests Django từ thư mục gốc kho chứa:
 
 ```powershell
+cd backend
 python manage.py test
 ```
 

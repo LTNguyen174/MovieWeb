@@ -26,14 +26,14 @@ local_settings.py
 Thumbs.db
 
 # ===== Frontend (Next.js) =====
-movie-frontend/node_modules/
-movie-frontend/.next/
-movie-frontend/.vercel/
-movie-frontend/.turbo/
-movie-frontend/.swc/
-movie-frontend/dist/
-movie-frontend/.env*
-!movie-frontend/.env.example
+frontend/node_modules/
+frontend/.next/
+frontend/.vercel/
+frontend/.turbo/
+frontend/.swc/
+frontend/dist/
+frontend/.env*
+!frontend/.env.example
 
 # ===== Python/Django extras =====
 __pycache__/
