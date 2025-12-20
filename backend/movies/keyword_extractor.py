@@ -21,9 +21,8 @@ class KeywordExtractor:
         self.genre_keywords = {
             'Phim Hành Động': ['action', 'hanh dong', 'hành động', 'hanh dong', 'Phim Hành Động'],
             'Phim Hình Sự': ['crime', 'hinh su', 'hình sự', 'trinh tham', 'trinh thám', 'Phim Hình Sự'],
-            'Phim Tình Cảm': ['romance', 'tinh cam', 'tình cảm', 'tình yêu', 'yeu', 'Phim Tình Cảm'],
-            'Phim Lãng Mạn': ['romance', 'lang man', 'lãng mạn', 'tình cảm', 'tình yêu', 'Phim Lãng Mạn'],
-            'Phim Kinh Dị': ['horror', 'kinh di', 'kinh dị', 'rung ron', 'rùng rợn', 'Phim Kinh Dị'],
+            'Phim Lãng Mạn': ['romance', 'lang man', 'lãng mạn', 'tình cảm', 'tình yêu', 'love', 'ngôn tình', 'tâm sự', 'tâm hồn', 'Phim Lãng Mạn'],
+            'Phim Kinh Dị': ['horror', 'kinh di', 'kinh dị', 'rung ron', 'rùng rợn', 'ma', 'sợ', 'đáng sợ', 'ám ảnh', 'kinh hoàng', 'phim ma', 'ghost', 'scary', 'Phim Kinh Dị'],
             'Phim Hài': ['comedy', 'hai huoc', 'hài hước', 'hài', 'Phim Hài'],
             'Phim Hoạt Hình': ['animation', 'hoat hinh', 'hoạt hình', 'cartoon', 'phim hoat hinh', 'Phim Hoạt Hình'],
             'Phim Phiêu Lưu': ['adventure', 'phieu luu', 'phiêu lưu', 'Phim Phiêu Lưu'],
@@ -31,14 +30,17 @@ class KeywordExtractor:
             'Phim Gia Đình': ['family', 'gia dinh', 'gia đình', 'Phim Gia Đình'],
             'Phim Chiến Tranh': ['war', 'chien tranh', 'chiến tranh', 'Phim Chiến Tranh'],
             'Phim Thể Thao': ['sports', 'the thao', 'thể thao', 'Phim Thể Thao'],
-            'Phim Nhạc': ['music', 'am nhac', 'âm nhạc', 'musical', 'Phim Nhạc'],
+            'Phim Nhạc': ['music', 'am nhac', 'âm nhạc', 'musical', 'Phim Nhạc', 'phim nhạc','nhạc'],
             'Phim Tài Liệu': ['documentary', 'tai lieu', 'tài liệu', 'Phim Tài Liệu'],
             'Phim Chính Kịch': ['drama', 'chinh kich', 'chính kịch', 'Phim Chính Kịch'],
-            'Phim Lịch Sử': ['history', 'lich su', 'lịch sử', 'Phim Lịch Sử'],
+            'Phim Lịch Sử': ['history', 'lich su', 'lịch sử', 'cổ trang', 'co trang', 'thời xưa', 'vua chúa', 'triều đình', 'xưa', 'quốc gia', 'Phim Lịch Sử'],
             'Phim Bí Ẩn': ['mystery', 'bi an', 'bí ẩn', 'Phim Bí Ẩn'],
             'Phim Gây Cấn': ['thriller', 'giat gan', 'giật gân', 'gây cấn', 'Phim Gây Cấn'],
             'Phim Giả Tượng': ['fantasy', 'gia tuong', 'giả tưởng', 'Phim Giả Tượng'],
             'Phim Miền Tây': ['western', 'mien tay', 'miền tây', 'Phim Miền Tây'],
+            'Chương Trình Truyền Hình': ['tv show', 'truyền hình', 'show', 'chương trình', 'thực tế', 'Chương Trình Truyền Hình'],
+            'Category1': ['category1', 'test1', 'Category1'],
+            'Category2': ['category2', 'test2', 'Category2'],
         }
         
         # Country name mappings - updated to match database country names
@@ -59,6 +61,7 @@ class KeywordExtractor:
             'mexico': ['mexico', 'mexican'],
             'nga': ['russia', 'russian'],
             'phần lan': ['finland', 'finnish'],
+            'thái lan': ['thailand', 'thai'],
             'pháp': ['france', 'french'],
         }
     
@@ -110,16 +113,31 @@ class KeywordExtractor:
     def _classify_query_type(self, query: str) -> str:
         """Classify query type: structured, title_search, or natural"""
         
+        # Check for natural query indicators first
+        natural_indicators = ['tìm', 'cho tôi', 'muốn xem', 'gợi ý', 'review', 'nào hay', 'về chủ đề', 'giống', 'như', 'có phim nào', 'tôi muốn']
+        if any(indicator in query for indicator in natural_indicators):
+            return 'natural'
+        
         # Check for structured query (contains commas or clear filter indicators)
         if (',' in query or 
             any(indicator in query for indicator in ['thể loại', 'quốc gia', 'năm', 'năm sản xuất', 'type', 'country', 'year'])):
             return 'structured'
         
+        # Check for title patterns first - priority for movie titles
+        title_patterns = [
+            r'^[A-Za-z\s&\d]+$',  # English titles like "Fast & Furious 10"
+            r'^[A-Za-z]+\s+\d+$',  # Titles with numbers like "Phim 2012"
+            r'^[A-Za-z]{2,}(\s+[A-Za-z]+)*$',  # Simple English titles
+        ]
+        
+        for pattern in title_patterns:
+            if re.search(pattern, query):
+                return 'title_search'
+        
         # Check for simple country/year patterns - treat as structured
         country_year_patterns = [
             r'phim\s+(mỹ|nhật bản|hàn quốc|trung quốc|việt nam|anh|pháp|đức|ý|tây ban nha|canada|úc|brasil|mexico|nga|phần lan)',
             r'phim\s+(năm\s+)?(19[0-9]{2}|20[0-3][0-9])',
-            r'(19[0-9]{2}|20[0-3][0-9])\s*$'
         ]
         
         for pattern in country_year_patterns:
@@ -217,7 +235,6 @@ class KeywordExtractor:
             r'có\s+tên\s+là\s+(.+?)(?:\s+(?:mỹ|nhật|hàn quốc|trung quốc|việt nam|anh|pháp|đức|ý|tây ban nha|canada|úc|brasil|mexico|nga|phần lan)\s*$|$)',  # "có tên là john wick"
             r'với\s+tên\s+là\s+(.+?)(?:\s+(?:mỹ|nhật|hàn quốc|trung quốc|việt nam|anh|pháp|đức|ý|tây ban nha|canada|úc|brasil|mexico|nga|phần lan)\s*$|$)',  # "với tên là john wick"
             r'tên\s+(.+?)(?:\s+(?:mỹ|nhật|hàn quốc|trung quốc|việt nam|anh|pháp|đức|ý|tây ban nha|canada|úc|brasil|mexico|nga|phần lan)\s*$|$)',  # "tên john wick" (fallback)
-            r'phim\s+(.+?)(?:\s+(?:mỹ|nhật|hàn quốc|trung quốc|việt nam|anh|pháp|đức|ý|tây ban nha|canada|úc|brasil|mexico|nga|phần lan)\s*$|$)',  # "phim john wick" 
             r'có\s+tên\s+(.+?)(?:\s+(?:mỹ|nhật|hàn quốc|trung quốc|việt nam|anh|pháp|đức|ý|tây ban nha|canada|úc|brasil|mexico|nga|phần lan)\s*$|$)',  # "có tên john wick"
             r'với\s+tên\s+(.+?)(?:\s+(?:mỹ|nhật|hàn quốc|trung quốc|việt nam|anh|pháp|đức|ý|tây ban nha|canada|úc|brasil|mexico|nga|phần lan)\s*$|$)',  # "với tên john wick"
         ]
@@ -228,25 +245,32 @@ class KeywordExtractor:
             if match:
                 title = match.group(1).strip()
                 if len(title) > 2:  # Minimum title length
-                    # Special check for "phim [word]" pattern - only check the first word after "phim"
+                    # Special check for "phim [word]" pattern - only extract title if it's not a genre
                     if 'phim ' in query_lower:
                         phim_index = query_lower.find('phim ')
                         after_phim = query_lower[phim_index + 5:].strip()  # Get text after "phim "
-                        first_word_after_phim = after_phim.split()[0] if after_phim.split() else ''
+                        words_after_phim = after_phim.split()
                         
-                        # Check if the first word after "phim" is a genre
-                        is_genre = False
-                        for genre_name, genre_keywords in self.genre_keywords.items():
-                            for keyword in genre_keywords:
-                                if first_word_after_phim.lower() == keyword.lower():
-                                    is_genre = True
-                                    break
+                        if len(words_after_phim) >= 2:
+                            # Check if we have both genre and country
+                            first_word = words_after_phim[0].lower()
+                            second_word = words_after_phim[1].lower()
+                            
+                            # Check if first word is a genre and second word is a country
+                            is_genre = any(first_word == kw.lower() for keywords in self.genre_keywords.values() for kw in keywords)
+                            is_country = any(second_word in country.lower() for country_list in self.country_mappings.values() for country in country_list)
+                            
+                            # If we have genre + country pattern, don't extract title
+                            if is_genre and is_country:
+                                break
+                        elif len(words_after_phim) == 1:
+                            # Check if the single word after "phim" is a genre
+                            first_word = words_after_phim[0].lower()
+                            is_genre = any(first_word == kw.lower() for keywords in self.genre_keywords.values() for kw in keywords)
+                            
+                            # If the word after "phim" is a genre, don't set movie title
                             if is_genre:
                                 break
-                        
-                        # If the word after "phim" is a genre, don't set movie title
-                        if is_genre:
-                            break
                     
                     # For other patterns, check if the extracted title is a genre
                     is_genre = False
